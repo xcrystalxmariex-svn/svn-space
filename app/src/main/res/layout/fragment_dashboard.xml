@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true"
-    android:background="@color/svn_bg">
+    android:background="?android:attr/colorBackground">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -26,7 +26,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="@string/dashboard_title"
-                android:textColor="@color/svn_text"
+                android:textColor="?attr/colorOnSurface"
                 android:textSize="22sp"
                 android:textStyle="bold" />
 
@@ -37,7 +37,7 @@
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/nav_settings"
                 android:src="@drawable/ic_nav_settings"
-                app:tint="@color/svn_text_secondary" />
+                app:tint="?attr/colorOnSurface_secondary" />
         </LinearLayout>
 
         <!-- Status card -->
@@ -45,9 +45,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="@color/svn_card"
+            app:cardBackgroundColor="?attr/colorSurfaceVariant"
             app:cardCornerRadius="16dp"
-            app:strokeColor="@color/svn_stroke"
+            app:strokeColor="?attr/colorOutline"
             app:strokeWidth="1dp"
             app:cardElevation="0dp">
 
@@ -68,7 +68,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="Backups"
-                        android:textColor="@color/svn_text"
+                        android:textColor="?attr/colorOnSurface"
                         android:textSize="15sp"
                         android:textStyle="bold" />
 
@@ -80,7 +80,7 @@
                         android:paddingHorizontal="12dp"
                         android:paddingVertical="4dp"
                         android:text="@string/status_all_good"
-                        android:textColor="@color/svn_success"
+                        android:textColor="?attr/colorPrimary"
                         android:textSize="12sp" />
                 </LinearLayout>
 
@@ -89,7 +89,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:textColor="@color/svn_text_secondary"
+                    android:textColor="?attr/colorOnSurface_secondary"
                     android:textSize="13sp"
                     android:text="Last scan: —" />
 
@@ -110,7 +110,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="—"
-                            android:textColor="@color/svn_cyan"
+                            android:textColor="?attr/colorPrimary"
                             android:textSize="20sp"
                             android:textStyle="bold" />
 
@@ -118,7 +118,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/backed_up"
-                            android:textColor="@color/svn_text_secondary"
+                            android:textColor="?attr/colorOnSurface_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
 
@@ -133,7 +133,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="—"
-                            android:textColor="@color/svn_text"
+                            android:textColor="?attr/colorOnSurface"
                             android:textSize="20sp"
                             android:textStyle="bold" />
 
@@ -141,7 +141,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/device_used"
-                            android:textColor="@color/svn_text_secondary"
+                            android:textColor="?attr/colorOnSurface_secondary"
                             android:textSize="12sp" />
                     </LinearLayout>
                 </LinearLayout>
@@ -181,7 +181,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/connected_providers"
-            android:textColor="@color/svn_text"
+            android:textColor="?attr/colorOnSurface"
             android:textSize="16sp"
             android:textStyle="bold"
             android:layout_marginBottom="8dp" />
@@ -189,9 +189,9 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardBackgroundColor="@color/svn_card"
+            app:cardBackgroundColor="?attr/colorSurfaceVariant"
             app:cardCornerRadius="16dp"
-            app:strokeColor="@color/svn_stroke"
+            app:strokeColor="?attr/colorOutline"
             app:strokeWidth="1dp"
             app:cardElevation="0dp">
 
@@ -212,7 +212,7 @@
                     android:layout_height="wrap_content"
                     android:padding="20dp"
                     android:text="@string/no_providers_yet"
-                    android:textColor="@color/svn_text_secondary"
+                    android:textColor="?attr/colorOnSurface_secondary"
                     android:textSize="14sp"
                     android:visibility="gone" />
 
@@ -232,7 +232,7 @@
             android:layout_marginTop="20dp"
             android:gravity="center"
             android:text="@string/tagline"
-            android:textColor="@color/svn_text_secondary"
+            android:textColor="?attr/colorOnSurface_secondary"
             android:textSize="12sp" />
 
     </LinearLayout>

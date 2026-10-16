@@ -27,6 +27,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 val option = ThemeManager.ThemeOption.entries.find { it.key == newValue }
                 if (option != null) {
                     ThemeManager.setTheme(requireContext(), option)
+                    // Recreate so every screen picks up the new style overlay
                     requireActivity().recreate()
                 }
                 true

@@ -32,7 +32,7 @@ class AddConnectionActivity : AppCompatActivity() {
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        setTheme(ThemeManager.themeStyleRes(this))
+        ThemeManager.applyToActivity(this)
         super.onCreate(savedInstanceState)
         binding = ActivityAddConnectionBinding.inflate(layoutInflater)
         setContentView(binding.root)

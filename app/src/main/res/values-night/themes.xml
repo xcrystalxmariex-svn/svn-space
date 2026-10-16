@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- When system is dark and Theme.SvnSpace.System is active -->
+    <style name="Theme.SvnSpace.System" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/svn_cyan</item>
+        <item name="colorOnPrimary">@color/void_black</item>
+        <item name="colorSecondary">@color/svn_purple</item>
+        <item name="colorSurface">@color/svn_surface</item>
+        <item name="colorOnSurface">@color/svn_text</item>
+        <item name="colorSurfaceVariant">@color/svn_card</item>
+        <item name="colorOnSurfaceVariant">@color/svn_text_secondary</item>
+        <item name="colorOutline">@color/svn_stroke</item>
+        <item name="android:colorBackground">@color/svn_bg</item>
+        <item name="colorOnBackground">@color/svn_text</item>
+        <item name="android:statusBarColor">@color/svn_bg</item>
+        <item name="android:navigationBarColor">@color/svn_bg</item>
+        <item name="android:windowBackground">@color/svn_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

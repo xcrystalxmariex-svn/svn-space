@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import space.svn.svnspace.util.ThemeManager
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -27,6 +28,7 @@ import java.util.UUID
 class OAuthRedirectActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        ThemeManager.applyToActivity(this)
         super.onCreate(savedInstanceState)
 
         val response = AuthorizationResponse.fromIntent(intent)

@@ -1,15 +1,72 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Follows system light/dark via DayNight; values-night overrides when dark -->
+    <style name="Theme.SvnSpace.System" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#0EA5E9</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#7C3AED</item>
+        <item name="colorSurface">#FFFFFF</item>
+        <item name="colorOnSurface">#0F172A</item>
+        <item name="colorSurfaceVariant">#F1F5F9</item>
+        <item name="colorOnSurfaceVariant">#475569</item>
+        <item name="colorOutline">#CBD5E1</item>
+        <item name="android:colorBackground">#F8FAFC</item>
+        <item name="colorOnBackground">#0F172A</item>
+        <item name="android:statusBarColor">#F8FAFC</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowBackground">#F8FAFC</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <!-- Base dark product shell (default / Aurora family) -->
     <style name="Theme.SvnSpace" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">@color/svn_cyan</item>
+        <item name="colorOnPrimary">@color/void_black</item>
+        <item name="colorPrimaryContainer">@color/svn_card_elevated</item>
+        <item name="colorOnPrimaryContainer">@color/svn_text</item>
         <item name="colorSecondary">@color/svn_purple</item>
+        <item name="colorOnSecondary">@color/white</item>
         <item name="colorSurface">@color/svn_surface</item>
         <item name="colorOnSurface">@color/svn_text</item>
-        <item name="colorOnPrimary">@color/void_black</item>
+        <item name="colorSurfaceVariant">@color/svn_card</item>
+        <item name="colorOnSurfaceVariant">@color/svn_text_secondary</item>
+        <item name="colorOutline">@color/svn_stroke</item>
+        <item name="android:colorBackground">@color/svn_bg</item>
+        <item name="colorOnBackground">@color/svn_text</item>
         <item name="android:statusBarColor">@color/svn_bg</item>
         <item name="android:navigationBarColor">@color/svn_bg</item>
         <item name="android:windowBackground">@color/svn_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="Theme.SvnSpace.Dark" parent="Theme.SvnSpace">
+        <item name="colorPrimary">@color/svn_cyan</item>
+        <item name="colorSecondary">@color/svn_purple</item>
         <item name="android:colorBackground">@color/svn_bg</item>
+        <item name="colorSurface">@color/svn_surface</item>
+        <item name="colorSurfaceVariant">@color/svn_card</item>
+        <item name="colorOnSurface">@color/svn_text</item>
+        <item name="colorOnSurfaceVariant">@color/svn_text_secondary</item>
+    </style>
+
+    <style name="Theme.SvnSpace.Light" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">#0EA5E9</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorPrimaryContainer">#E0F2FE</item>
+        <item name="colorOnPrimaryContainer">#0C4A6E</item>
+        <item name="colorSecondary">#7C3AED</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="colorSurface">#FFFFFF</item>
+        <item name="colorOnSurface">#0F172A</item>
+        <item name="colorSurfaceVariant">#F1F5F9</item>
+        <item name="colorOnSurfaceVariant">#475569</item>
+        <item name="colorOutline">#CBD5E1</item>
+        <item name="android:colorBackground">#F8FAFC</item>
+        <item name="colorOnBackground">#0F172A</item>
+        <item name="android:statusBarColor">#F8FAFC</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowBackground">#F8FAFC</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
     <style name="Theme.SvnSpace.Transparent" parent="Theme.SvnSpace">
@@ -19,91 +76,145 @@
 
     <style name="Theme.SvnSpace.Eggplant" parent="Theme.SvnSpace">
         <item name="colorPrimary">@color/eggplant_primary</item>
+        <item name="colorOnPrimary">@color/white</item>
         <item name="colorSecondary">@color/eggplant_secondary</item>
         <item name="colorSurface">@color/eggplant_surface</item>
+        <item name="colorSurfaceVariant">#1E1024</item>
         <item name="colorOnSurface">@color/eggplant_on</item>
+        <item name="colorOnSurfaceVariant">#C4A8D4</item>
+        <item name="android:colorBackground">@color/eggplant_surface</item>
         <item name="android:windowBackground">@color/eggplant_surface</item>
+        <item name="android:statusBarColor">@color/eggplant_surface</item>
+        <item name="android:navigationBarColor">@color/eggplant_surface</item>
+        <item name="colorOutline">#3D2A45</item>
     </style>
 
     <style name="Theme.SvnSpace.Aurora" parent="Theme.SvnSpace">
         <item name="colorPrimary">@color/aurora_primary</item>
+        <item name="colorOnPrimary">@color/void_black</item>
         <item name="colorSecondary">@color/aurora_secondary</item>
         <item name="colorSurface">@color/aurora_surface</item>
+        <item name="colorSurfaceVariant">#0F1A30</item>
         <item name="colorOnSurface">@color/aurora_on</item>
+        <item name="colorOnSurfaceVariant">#8BA8B8</item>
+        <item name="android:colorBackground">@color/aurora_surface</item>
         <item name="android:windowBackground">@color/aurora_surface</item>
+        <item name="android:statusBarColor">@color/aurora_surface</item>
+        <item name="android:navigationBarColor">@color/aurora_surface</item>
+        <item name="colorOutline">#1A2A40</item>
     </style>
 
     <style name="Theme.SvnSpace.Sunset" parent="Theme.SvnSpace">
         <item name="colorPrimary">@color/sunset_primary</item>
+        <item name="colorOnPrimary">@color/white</item>
         <item name="colorSecondary">@color/sunset_secondary</item>
         <item name="colorSurface">@color/sunset_surface</item>
+        <item name="colorSurfaceVariant">#241610</item>
         <item name="colorOnSurface">@color/sunset_on</item>
+        <item name="colorOnSurfaceVariant">#C4A890</item>
+        <item name="android:colorBackground">@color/sunset_surface</item>
         <item name="android:windowBackground">@color/sunset_surface</item>
+        <item name="android:statusBarColor">@color/sunset_surface</item>
+        <item name="android:navigationBarColor">@color/sunset_surface</item>
+        <item name="colorOutline">#3A2818</item>
     </style>
 
     <style name="Theme.SvnSpace.Retrowave" parent="Theme.SvnSpace">
         <item name="colorPrimary">@color/retrowave_primary</item>
+        <item name="colorOnPrimary">@color/white</item>
         <item name="colorSecondary">@color/retrowave_secondary</item>
         <item name="colorSurface">@color/retrowave_surface</item>
+        <item name="colorSurfaceVariant">#1A0A35</item>
         <item name="colorOnSurface">@color/retrowave_on</item>
+        <item name="colorOnSurfaceVariant">#88A8B8</item>
+        <item name="android:colorBackground">@color/retrowave_surface</item>
         <item name="android:windowBackground">@color/retrowave_surface</item>
+        <item name="android:statusBarColor">@color/retrowave_surface</item>
+        <item name="android:navigationBarColor">@color/retrowave_surface</item>
+        <item name="colorOutline">#2A1550</item>
     </style>
 
     <style name="Theme.SvnSpace.Neon" parent="Theme.SvnSpace">
         <item name="colorPrimary">@color/neon_primary</item>
+        <item name="colorOnPrimary">@color/void_black</item>
         <item name="colorSecondary">@color/neon_secondary</item>
         <item name="colorSurface">@color/neon_surface</item>
+        <item name="colorSurfaceVariant">#121212</item>
         <item name="colorOnSurface">@color/neon_on</item>
+        <item name="colorOnSurfaceVariant">#88AA88</item>
+        <item name="android:colorBackground">@color/neon_surface</item>
         <item name="android:windowBackground">@color/neon_surface</item>
+        <item name="android:statusBarColor">@color/neon_surface</item>
+        <item name="android:navigationBarColor">@color/neon_surface</item>
+        <item name="colorOutline">#1F3F1F</item>
     </style>
 
     <style name="Theme.SvnSpace.Cyberpunk" parent="Theme.SvnSpace">
         <item name="colorPrimary">@color/cyberpunk_primary</item>
+        <item name="colorOnPrimary">@color/void_black</item>
         <item name="colorSecondary">@color/cyberpunk_secondary</item>
         <item name="colorSurface">@color/cyberpunk_surface</item>
+        <item name="colorSurfaceVariant">#151515</item>
         <item name="colorOnSurface">@color/cyberpunk_on</item>
+        <item name="colorOnSurfaceVariant">#A0A0A0</item>
+        <item name="android:colorBackground">@color/cyberpunk_surface</item>
         <item name="android:windowBackground">@color/cyberpunk_surface</item>
+        <item name="android:statusBarColor">@color/cyberpunk_surface</item>
+        <item name="android:navigationBarColor">@color/cyberpunk_surface</item>
+        <item name="colorOutline">#333333</item>
     </style>
 
     <style name="Theme.SvnSpace.Terminal" parent="Theme.SvnSpace">
         <item name="colorPrimary">@color/terminal_primary</item>
+        <item name="colorOnPrimary">@color/void_black</item>
         <item name="colorSecondary">@color/tron_blue</item>
         <item name="colorSurface">@color/terminal_surface</item>
+        <item name="colorSurfaceVariant">#0A0A0A</item>
         <item name="colorOnSurface">@color/terminal_on</item>
+        <item name="colorOnSurfaceVariant">#00AA30</item>
+        <item name="android:colorBackground">@color/terminal_surface</item>
         <item name="android:windowBackground">@color/terminal_surface</item>
+        <item name="android:statusBarColor">@color/terminal_surface</item>
+        <item name="android:navigationBarColor">@color/terminal_surface</item>
+        <item name="colorOutline">#003B00</item>
         <item name="android:fontFamily">monospace</item>
     </style>
 
     <style name="Theme.SvnSpace.Void" parent="Theme.SvnSpace">
         <item name="colorPrimary">@color/void_primary</item>
+        <item name="colorOnPrimary">@color/white</item>
         <item name="colorSecondary">@color/void_secondary</item>
         <item name="colorSurface">@color/void_surface</item>
+        <item name="colorSurfaceVariant">#0E0E14</item>
         <item name="colorOnSurface">@color/void_on</item>
+        <item name="colorOnSurfaceVariant">#8888A0</item>
+        <item name="android:colorBackground">@color/void_surface</item>
         <item name="android:windowBackground">@color/void_surface</item>
+        <item name="android:statusBarColor">@color/void_surface</item>
+        <item name="android:navigationBarColor">@color/void_surface</item>
+        <item name="colorOutline">#1A1A28</item>
     </style>
 
     <style name="Theme.SvnSpace.Alexandrite" parent="Theme.SvnSpace">
         <item name="colorPrimary">@color/alex_primary</item>
+        <item name="colorOnPrimary">@color/white</item>
         <item name="colorSecondary">@color/alex_secondary</item>
         <item name="colorSurface">@color/alex_surface</item>
+        <item name="colorSurfaceVariant">#142018</item>
         <item name="colorOnSurface">@color/alex_on</item>
+        <item name="colorOnSurfaceVariant">#8AAA90</item>
+        <item name="android:colorBackground">@color/alex_surface</item>
         <item name="android:windowBackground">@color/alex_surface</item>
+        <item name="android:statusBarColor">@color/alex_surface</item>
+        <item name="android:navigationBarColor">@color/alex_surface</item>
+        <item name="colorOutline">#1E3020</item>
     </style>
 
     <style name="Widget.SvnSpace.Card" parent="Widget.Material3.CardView.Elevated">
-        <item name="cardBackgroundColor">@color/svn_card</item>
+        <item name="cardBackgroundColor">?attr/colorSurfaceVariant</item>
         <item name="cardCornerRadius">16dp</item>
         <item name="cardElevation">0dp</item>
-        <item name="strokeColor">@color/svn_stroke</item>
+        <item name="strokeColor">?attr/colorOutline</item>
         <item name="strokeWidth">1dp</item>
-    </style>
-
-    <style name="Widget.SvnSpace.GradientButton" parent="Widget.Material3.Button">
-        <item name="android:background">@drawable/bg_gradient_button</item>
-        <item name="android:textColor">@color/white</item>
-        <item name="backgroundTint">@null</item>
-        <item name="android:textAllCaps">false</item>
-        <item name="android:paddingTop">14dp</item>
-        <item name="android:paddingBottom">14dp</item>
     </style>
 </resources>
