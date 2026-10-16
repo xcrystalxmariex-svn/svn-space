@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme -->
+    <style name="Theme.SvnSpace" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/alexandrite_green</item>
+        <item name="colorSecondary">@color/alexandrite_red</item>
+        <item name="android:statusBarColor">@color/void_black</item>
+        <item name="android:navigationBarColor">@color/void_black</item>
+        <item name="android:windowBackground">@color/void_black</item>
+        <item name="colorSurface">@color/alex_surface</item>
+        <item name="colorOnSurface">@color/alex_on</item>
+    </style>
+
+    <style name="Theme.SvnSpace.Transparent" parent="Theme.SvnSpace">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
+
+    <!-- Theme variants applied at runtime via AppCompatDelegate / custom overlay -->
+    <style name="Theme.SvnSpace.Eggplant" parent="Theme.SvnSpace">
+        <item name="colorPrimary">@color/eggplant_primary</item>
+        <item name="colorSecondary">@color/eggplant_secondary</item>
+        <item name="colorSurface">@color/eggplant_surface</item>
+        <item name="colorOnSurface">@color/eggplant_on</item>
+        <item name="android:windowBackground">@color/eggplant_surface</item>
+    </style>
+
+    <style name="Theme.SvnSpace.Aurora" parent="Theme.SvnSpace">
+        <item name="colorPrimary">@color/aurora_primary</item>
+        <item name="colorSecondary">@color/aurora_secondary</item>
+        <item name="colorSurface">@color/aurora_surface</item>
+        <item name="colorOnSurface">@color/aurora_on</item>
+        <item name="android:windowBackground">@color/aurora_surface</item>
+    </style>
+
+    <style name="Theme.SvnSpace.Sunset" parent="Theme.SvnSpace">
+        <item name="colorPrimary">@color/sunset_primary</item>
+        <item name="colorSecondary">@color/sunset_secondary</item>
+        <item name="colorSurface">@color/sunset_surface</item>
+        <item name="colorOnSurface">@color/sunset_on</item>
+        <item name="android:windowBackground">@color/sunset_surface</item>
+    </style>
+
+    <style name="Theme.SvnSpace.Retrowave" parent="Theme.SvnSpace">
+        <item name="colorPrimary">@color/retrowave_primary</item>
+        <item name="colorSecondary">@color/retrowave_secondary</item>
+        <item name="colorSurface">@color/retrowave_surface</item>
+        <item name="colorOnSurface">@color/retrowave_on</item>
+        <item name="android:windowBackground">@color/retrowave_surface</item>
+    </style>
+
+    <style name="Theme.SvnSpace.Neon" parent="Theme.SvnSpace">
+        <item name="colorPrimary">@color/neon_primary</item>
+        <item name="colorSecondary">@color/neon_secondary</item>
+        <item name="colorSurface">@color/neon_surface</item>
+        <item name="colorOnSurface">@color/neon_on</item>
+        <item name="android:windowBackground">@color/neon_surface</item>
+    </style>
+
+    <style name="Theme.SvnSpace.Cyberpunk" parent="Theme.SvnSpace">
+        <item name="colorPrimary">@color/cyberpunk_primary</item>
+        <item name="colorSecondary">@color/cyberpunk_secondary</item>
+        <item name="colorSurface">@color/cyberpunk_surface</item>
+        <item name="colorOnSurface">@color/cyberpunk_on</item>
+        <item name="android:windowBackground">@color/cyberpunk_surface</item>
+    </style>
+
+    <style name="Theme.SvnSpace.Terminal" parent="Theme.SvnSpace">
+        <item name="colorPrimary">@color/terminal_primary</item>
+        <item name="colorSecondary">@color/tron_blue</item>
+        <item name="colorSurface">@color/terminal_surface</item>
+        <item name="colorOnSurface">@color/terminal_on</item>
+        <item name="android:windowBackground">@color/terminal_surface</item>
+        <item name="android:fontFamily">monospace</item>
+    </style>
+
+    <style name="Theme.SvnSpace.Void" parent="Theme.SvnSpace">
+        <item name="colorPrimary">@color/void_primary</item>
+        <item name="colorSecondary">@color/void_secondary</item>
+        <item name="colorSurface">@color/void_surface</item>
+        <item name="colorOnSurface">@color/void_on</item>
+        <item name="android:windowBackground">@color/void_surface</item>
+    </style>
+
+    <style name="Theme.SvnSpace.Alexandrite" parent="Theme.SvnSpace">
+        <item name="colorPrimary">@color/alex_primary</item>
+        <item name="colorSecondary">@color/alex_secondary</item>
+        <item name="colorSurface">@color/alex_surface</item>
+        <item name="colorOnSurface">@color/alex_on</item>
+        <item name="android:windowBackground">@color/alex_surface</item>
+    </style>
+</resources>

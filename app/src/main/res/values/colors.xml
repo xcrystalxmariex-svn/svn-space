@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Core brand - alexandrite inspired -->
+    <color name="alexandrite_green">#2E8B57</color>
+    <color name="alexandrite_red">#C41E3A</color>
+    <color name="void_black">#0A0A0F</color>
+    <color name="prism_white">#F5F5F7</color>
+
+    <!-- System / defaults -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Theme: Eggplant -->
+    <color name="eggplant_primary">#4A1942</color>
+    <color name="eggplant_secondary">#9B59B6</color>
+    <color name="eggplant_surface">#1A0F1A</color>
+    <color name="eggplant_on">#E8D5E8</color>
+
+    <!-- Theme: Aurora -->
+    <color name="aurora_primary">#00C9A7</color>
+    <color name="aurora_secondary">#845EC2</color>
+    <color name="aurora_surface">#0B1426</color>
+    <color name="aurora_on">#E0F7F4</color>
+
+    <!-- Theme: Sunset -->
+    <color name="sunset_primary">#FF6B35</color>
+    <color name="sunset_secondary">#F7C59F</color>
+    <color name="sunset_surface">#1C0F0A</color>
+    <color name="sunset_on">#FFF0E6</color>
+
+    <!-- Theme: Retrowave -->
+    <color name="retrowave_primary">#FF2A6D</color>
+    <color name="retrowave_secondary">#05D9E8</color>
+    <color name="retrowave_surface">#0D0221</color>
+    <color name="retrowave_on">#D1F7FF</color>
+
+    <!-- Theme: Neon -->
+    <color name="neon_primary">#39FF14</color>
+    <color name="neon_secondary">#FF00FF</color>
+    <color name="neon_surface">#0A0A0A</color>
+    <color name="neon_on">#E0FFE0</color>
+
+    <!-- Theme: Cyberpunk -->
+    <color name="cyberpunk_primary">#FCEE0A</color>
+    <color name="cyberpunk_secondary">#00F0FF</color>
+    <color name="cyberpunk_surface">#0D0D0D</color>
+    <color name="cyberpunk_on">#F0F0F0</color>
+
+    <!-- Theme: Terminal / Tron -->
+    <color name="terminal_primary">#00FF41</color>
+    <color name="terminal_secondary">#003B00</color>
+    <color name="terminal_surface">#000000</color>
+    <color name="terminal_on">#00FF41</color>
+    <color name="tron_blue">#00D4FF</color>
+
+    <!-- Theme: Void -->
+    <color name="void_primary">#6B5B95</color>
+    <color name="void_secondary">#1A1A2E</color>
+    <color name="void_surface">#050508</color>
+    <color name="void_on">#C9C9D1</color>
+
+    <!-- Theme: Alexandrite (signature) -->
+    <color name="alex_primary">#2E8B57</color>
+    <color name="alex_secondary">#C41E3A</color>
+    <color name="alex_surface">#0C1210</color>
+    <color name="alex_on">#E8F5E9</color>
+</resources>
