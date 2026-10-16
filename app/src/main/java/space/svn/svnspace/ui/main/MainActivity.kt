@@ -7,9 +7,9 @@ import android.view.MenuItem
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
-import com.google.android.material.bottomnavigation.BottomNavigationView
 import space.svn.svnspace.R
 import space.svn.svnspace.databinding.ActivityMainBinding
+import space.svn.svnspace.ui.dashboard.DashboardFragment
 import space.svn.svnspace.ui.settings.SettingsActivity
 import space.svn.svnspace.ui.tree.CloudTreeFragment
 import space.svn.svnspace.ui.tree.LocalTreeFragment
@@ -22,7 +22,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Apply selected theme before super / setContentView
         setTheme(ThemeManager.themeStyleRes(this))
         super.onCreate(savedInstanceState)
 
@@ -34,20 +33,25 @@ class MainActivity : AppCompatActivity() {
 
         binding.bottomNav.setOnItemSelectedListener { item ->
             when (item.itemId) {
-                R.id.nav_local -> {
-                    openFragment(LocalTreeFragment())
+                R.id.nav_home -> {
+                    openFragment(DashboardFragment())
+                    supportActionBar?.title = getString(R.string.app_name)
                     true
                 }
-                R.id.nav_cloud -> {
+                R.id.nav_files -> {
+                    // Files tab: cloud tree (local available from within / settings)
                     openFragment(CloudTreeFragment())
+                    supportActionBar?.title = getString(R.string.nav_files)
                     true
                 }
                 R.id.nav_search -> {
                     openFragment(SearchFragment())
+                    supportActionBar?.title = getString(R.string.nav_search)
                     true
                 }
                 R.id.nav_settings -> {
                     startActivity(Intent(this, SettingsActivity::class.java))
+                    // keep selection on previous tab visually next time
                     true
                 }
                 else -> false
@@ -55,7 +59,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (savedInstanceState == null) {
-            binding.bottomNav.selectedItemId = R.id.nav_local
+            binding.bottomNav.selectedItemId = R.id.nav_home
         }
     }
 
@@ -85,7 +89,6 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.free_up_space_confirm_title)
             .setMessage(R.string.free_up_space_confirm_message)
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                // Kick off verified deletion worker
                 FreeUpSpaceWorker.enqueue(this)
             }
             .setNegativeButton(android.R.string.cancel, null)

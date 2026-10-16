@@ -26,8 +26,8 @@ object ThemeManager {
 
     fun applySavedTheme(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val key = prefs.getString(KEY_THEME, ThemeOption.ALEXANDRITE.key)
-        val option = ThemeOption.entries.find { it.key == key } ?: ThemeOption.ALEXANDRITE
+        val key = prefs.getString(KEY_THEME, ThemeOption.AURORA.key)
+        val option = ThemeOption.entries.find { it.key == key } ?: ThemeOption.AURORA
 
         when (option) {
             ThemeOption.SYSTEM -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
@@ -50,8 +50,8 @@ object ThemeManager {
 
     fun currentTheme(context: Context): ThemeOption {
         val key = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_THEME, ThemeOption.ALEXANDRITE.key)
-        return ThemeOption.entries.find { it.key == key } ?: ThemeOption.ALEXANDRITE
+            .getString(KEY_THEME, ThemeOption.AURORA.key)
+        return ThemeOption.entries.find { it.key == key } ?: ThemeOption.AURORA
     }
 
     fun themeStyleRes(context: Context): Int {

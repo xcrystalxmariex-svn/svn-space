@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base application theme -->
-    <style name="Theme.SvnSpace" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/alexandrite_green</item>
-        <item name="colorSecondary">@color/alexandrite_red</item>
-        <item name="android:statusBarColor">@color/void_black</item>
-        <item name="android:navigationBarColor">@color/void_black</item>
-        <item name="android:windowBackground">@color/void_black</item>
-        <item name="colorSurface">@color/alex_surface</item>
-        <item name="colorOnSurface">@color/alex_on</item>
+    <style name="Theme.SvnSpace" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/svn_cyan</item>
+        <item name="colorSecondary">@color/svn_purple</item>
+        <item name="colorSurface">@color/svn_surface</item>
+        <item name="colorOnSurface">@color/svn_text</item>
+        <item name="colorOnPrimary">@color/void_black</item>
+        <item name="android:statusBarColor">@color/svn_bg</item>
+        <item name="android:navigationBarColor">@color/svn_bg</item>
+        <item name="android:windowBackground">@color/svn_bg</item>
+        <item name="android:colorBackground">@color/svn_bg</item>
     </style>
 
     <style name="Theme.SvnSpace.Transparent" parent="Theme.SvnSpace">
@@ -16,7 +17,6 @@
         <item name="android:windowBackground">@android:color/transparent</item>
     </style>
 
-    <!-- Theme variants applied at runtime via AppCompatDelegate / custom overlay -->
     <style name="Theme.SvnSpace.Eggplant" parent="Theme.SvnSpace">
         <item name="colorPrimary">@color/eggplant_primary</item>
         <item name="colorSecondary">@color/eggplant_secondary</item>
@@ -88,5 +88,22 @@
         <item name="colorSurface">@color/alex_surface</item>
         <item name="colorOnSurface">@color/alex_on</item>
         <item name="android:windowBackground">@color/alex_surface</item>
+    </style>
+
+    <style name="Widget.SvnSpace.Card" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardBackgroundColor">@color/svn_card</item>
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">@color/svn_stroke</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+
+    <style name="Widget.SvnSpace.GradientButton" parent="Widget.Material3.Button">
+        <item name="android:background">@drawable/bg_gradient_button</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="backgroundTint">@null</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:paddingTop">14dp</item>
+        <item name="android:paddingBottom">14dp</item>
     </style>
 </resources>
