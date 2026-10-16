@@ -56,9 +56,9 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Package-id scheme: space.svn.svnspace:/oauth2redirect (debug adds .debug) -->
+                <!-- Google reverse-client-id redirect (installed client) -->
                 <data
-                    android:scheme="${appAuthRedirectScheme}"
+                    android:scheme="com.googleusercontent.apps.606145683240-9admvfv6f4vuchepn0fidbhuk95phufn"
                     android:path="/oauth2redirect" />
             </intent-filter>
         </activity>

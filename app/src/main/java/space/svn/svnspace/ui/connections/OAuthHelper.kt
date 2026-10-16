@@ -6,28 +6,38 @@ import net.openid.appauth.AuthorizationRequest
 import net.openid.appauth.AuthorizationService
 import net.openid.appauth.AuthorizationServiceConfiguration
 import net.openid.appauth.ResponseTypeValues
-import space.svn.svnspace.BuildConfig
 
 /**
- * OAuth launch helpers.
+ * Google installed client uses the reverse-client-id redirect form:
+ *   com.googleusercontent.apps.{CLIENT_ID_PREFIX}:/oauth2redirect
  *
- * Redirect uses applicationId as scheme (package-style URI):
- *   space.svn.svnspace:/oauth2redirect
- *   space.svn.svnspace.debug:/oauth2redirect
+ * That is what Google Console registers for native/Desktop/Installed clients
+ * when custom package URIs are not the path you configured.
  *
- * Register BOTH exact strings under Authorized redirect URIs on the Google OAuth client.
- * Manifest scheme comes from manifestPlaceholders["appAuthRedirectScheme"].
+ * Client ID:
+ *   606145683240-9admvfv6f4vuchepn0fidbhuk95phufn.apps.googleusercontent.com
+ * Prefix (before .apps.googleusercontent.com):
+ *   606145683240-9admvfv6f4vuchepn0fidbhuk95phufn
  */
 object OAuthHelper {
 
     const val GOOGLE_CLIENT_ID =
         "606145683240-9admvfv6f4vuchepn0fidbhuk95phufn.apps.googleusercontent.com"
 
+    /** Prefix only — used to build the reverse scheme. */
+    private const val GOOGLE_CLIENT_ID_PREFIX =
+        "606145683240-9admvfv6f4vuchepn0fidbhuk95phufn"
+
+    /**
+     * Exact redirect Google expects for this installed client:
+     * com.googleusercontent.apps.606145683240-9admvfv6f4vuchepn0fidbhuk95phufn:/oauth2redirect
+     */
+    val REDIRECT: Uri = Uri.parse(
+        "com.googleusercontent.apps.${GOOGLE_CLIENT_ID_PREFIX}:/oauth2redirect"
+    )
+
     const val MICROSOFT_CLIENT_ID = "YOUR_MICROSOFT_CLIENT_ID"
     const val DROPBOX_CLIENT_ID = "YOUR_DROPBOX_APP_KEY"
-
-    val REDIRECT: Uri
-        get() = Uri.parse("${BuildConfig.APPLICATION_ID}:/oauth2redirect")
 
     fun launchGoogle(context: Context) {
         val config = AuthorizationServiceConfiguration(

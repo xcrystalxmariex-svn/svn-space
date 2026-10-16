@@ -26,13 +26,13 @@ android {
         versionName = "1.0.0-alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        manifestPlaceholders["appAuthRedirectScheme"] = "space.svn.svnspace"
+        manifestPlaceholders["appAuthRedirectScheme"] = "com.googleusercontent.apps.606145683240-9admvfv6f4vuchepn0fidbhuk95phufn"
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            manifestPlaceholders["appAuthRedirectScheme"] = "space.svn.svnspace"
+            manifestPlaceholders["appAuthRedirectScheme"] = "com.googleusercontent.apps.606145683240-9admvfv6f4vuchepn0fidbhuk95phufn"
             
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -42,7 +42,7 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            manifestPlaceholders["appAuthRedirectScheme"] = "space.svn.svnspace.debug"
+            manifestPlaceholders["appAuthRedirectScheme"] = "com.googleusercontent.apps.606145683240-9admvfv6f4vuchepn0fidbhuk95phufn"
         }
     }
 
