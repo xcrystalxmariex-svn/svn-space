@@ -19,7 +19,7 @@ android {
     // }
 
     defaultConfig {
-        applicationId = "space.svn.svnspace"
+        applicationId = "com.svndev.svnspace"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
