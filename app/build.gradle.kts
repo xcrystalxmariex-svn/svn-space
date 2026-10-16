@@ -8,6 +8,16 @@ android {
     namespace = "space.svn.svnspace"
     compileSdk = 35
 
+    // Release signing is device-local. Uncomment and set real values only on your machine.
+    // signingConfigs {
+    //     create("release") {
+    //         storeFile = file("/sdcard/Download/my-release-key.keystore")
+    //         storePassword = "your_keystore_password"
+    //         keyAlias = "my_alias_name"
+    //         keyPassword = "your_key_password"
+    //     }
+    // }
+
     defaultConfig {
         applicationId = "space.svn.svnspace"
         minSdk = 26
@@ -16,14 +26,14 @@ android {
         versionName = "1.0.0-alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        // OAuth redirect scheme for providers
-        manifestPlaceholders["appAuthRedirectScheme"] = "svnspace"
+        manifestPlaceholders["appAuthRedirectScheme"] = "space.svn.svnspace"
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            manifestPlaceholders["appAuthRedirectScheme"] = "space.svn.svnspace"
+            
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -32,6 +42,7 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            manifestPlaceholders["appAuthRedirectScheme"] = "space.svn.svnspace.debug"
         }
     }
 

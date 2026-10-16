@@ -56,8 +56,10 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Custom scheme for AppAuth -->
-                <data android:scheme="svnspace" android:host="oauth" />
+                <!-- Package-id scheme: space.svn.svnspace:/oauth2redirect (debug adds .debug) -->
+                <data
+                    android:scheme="${appAuthRedirectScheme}"
+                    android:path="/oauth2redirect" />
             </intent-filter>
         </activity>
 

@@ -6,29 +6,28 @@ import net.openid.appauth.AuthorizationRequest
 import net.openid.appauth.AuthorizationService
 import net.openid.appauth.AuthorizationServiceConfiguration
 import net.openid.appauth.ResponseTypeValues
+import space.svn.svnspace.BuildConfig
 
 /**
  * OAuth launch helpers.
  *
- * Google: installed (public) client — correct type for APK.
- * No client secret. Redirect: svnspace://oauth
+ * Redirect uses applicationId as scheme (package-style URI):
+ *   space.svn.svnspace:/oauth2redirect
+ *   space.svn.svnspace.debug:/oauth2redirect
  *
- * In Google Cloud Console for this client, under Authorized redirect URIs add:
- *   svnspace://oauth
- * (Installed/Desktop clients accept custom schemes more readily than Web clients.)
+ * Register BOTH exact strings under Authorized redirect URIs on the Google OAuth client.
+ * Manifest scheme comes from manifestPlaceholders["appAuthRedirectScheme"].
  */
 object OAuthHelper {
 
-    // ── Google (installed / APK client) ──────────────────────────
     const val GOOGLE_CLIENT_ID =
         "606145683240-9admvfv6f4vuchepn0fidbhuk95phufn.apps.googleusercontent.com"
-    // No secret — public client
-    // ─────────────────────────────────────────────────────────────
 
     const val MICROSOFT_CLIENT_ID = "YOUR_MICROSOFT_CLIENT_ID"
     const val DROPBOX_CLIENT_ID = "YOUR_DROPBOX_APP_KEY"
 
-    val REDIRECT: Uri = Uri.parse("svnspace://oauth")
+    val REDIRECT: Uri
+        get() = Uri.parse("${BuildConfig.APPLICATION_ID}:/oauth2redirect")
 
     fun launchGoogle(context: Context) {
         val config = AuthorizationServiceConfiguration(
@@ -45,7 +44,7 @@ object OAuthHelper {
                 "https://www.googleapis.com/auth/drive.file",
                 "https://www.googleapis.com/auth/drive.appdata"
             )
-            .setPrompt("consent") // force refresh_token on first grant
+            .setPrompt("consent")
             .build()
 
         val service = AuthorizationService(context)
