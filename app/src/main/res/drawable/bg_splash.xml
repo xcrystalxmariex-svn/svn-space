@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Deep-space backdrop for the splash screen. -->
+<!-- Splash backdrop in the current theme's colors: background fading into the surface. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <gradient
         android:angle="270"
-        android:startColor="#FF03040F"
-        android:centerColor="#FF0B1030"
-        android:endColor="#FF1B0F3D" />
+        android:startColor="?android:attr/colorBackground"
+        android:centerColor="?android:attr/colorBackground"
+        android:endColor="?attr/colorSurfaceVariant" />
 </shape>

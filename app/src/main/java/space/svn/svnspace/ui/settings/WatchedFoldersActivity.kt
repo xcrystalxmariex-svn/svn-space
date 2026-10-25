@@ -12,7 +12,7 @@ import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
+import space.svn.svnspace.ui.common.ThemedActivity
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -37,7 +37,7 @@ import java.util.UUID
  * A folder with no connection is never backed up, so a new folder is given the only
  * connection automatically, or its settings open right away when there are several.
  */
-class WatchedFoldersActivity : AppCompatActivity() {
+class WatchedFoldersActivity : ThemedActivity() {
 
     private lateinit var binding: ActivityWatchedFoldersBinding
     private lateinit var repo: SvnRepository
@@ -82,7 +82,6 @@ class WatchedFoldersActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        ThemeManager.applyToActivity(this)
         super.onCreate(savedInstanceState)
         binding = ActivityWatchedFoldersBinding.inflate(layoutInflater)
         setContentView(binding.root)

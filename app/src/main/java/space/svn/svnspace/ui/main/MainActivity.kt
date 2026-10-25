@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
+import space.svn.svnspace.ui.common.ThemedActivity
 import androidx.fragment.app.Fragment
 import space.svn.svnspace.R
 import space.svn.svnspace.databinding.ActivityMainBinding
@@ -17,12 +17,11 @@ import space.svn.svnspace.ui.tree.SearchFragment
 import space.svn.svnspace.util.ThemeManager
 import space.svn.svnspace.worker.FreeUpSpaceWorker
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : ThemedActivity() {
 
     private lateinit var binding: ActivityMainBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        ThemeManager.applyToActivity(this)
         super.onCreate(savedInstanceState)
 
         binding = ActivityMainBinding.inflate(layoutInflater)

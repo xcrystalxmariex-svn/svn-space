@@ -12,6 +12,7 @@
         android:layout_height="900dp"
         android:layout_gravity="bottom|center_horizontal"
         android:layout_marginBottom="-700dp"
+        android:alpha="0.85"
         android:background="@drawable/bg_planet" />
 
     <LinearLayout
@@ -28,6 +29,7 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
+                android:alpha="0.35"
                 android:background="@drawable/bg_logo_glow" />
             <ImageView
                 android:id="@+id/img_logo"
@@ -43,7 +45,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="svn-space"
-            android:textColor="#FFFFFFFF"
+            android:textColor="?attr/colorOnSurface"
             android:textSize="34sp"
             android:textStyle="bold"
             android:letterSpacing="0.04" />
@@ -53,7 +55,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
             android:text="Your Files. Everywhere."
-            android:textColor="#CCB4C6FF"
+            android:textColor="?attr/colorOnSurfaceVariant"
             android:textSize="16sp" />
 
         <com.google.android.material.progressindicator.LinearProgressIndicator
@@ -61,8 +63,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="36dp"
             android:indeterminate="true"
-            app:indicatorColor="#FF818CF8"
-            app:trackColor="#33FFFFFF"
+            app:indicatorColor="?attr/colorPrimary"
+            app:trackColor="?attr/colorOutline"
             app:trackCornerRadius="4dp" />
     </LinearLayout>
 </FrameLayout>

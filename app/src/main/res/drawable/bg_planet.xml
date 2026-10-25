@@ -7,8 +7,8 @@
                 android:type="radial"
                 android:gradientRadius="60%p"
                 android:centerY="0.0"
-                android:startColor="#FF7C3AED"
-                android:centerColor="#FF312E81"
+                android:startColor="?attr/colorSecondary"
+                android:centerColor="?attr/colorSurfaceVariant"
                 android:endColor="#00000000" />
         </shape>
     </item>
@@ -16,9 +16,9 @@
         <shape android:shape="oval">
             <gradient
                 android:angle="270"
-                android:startColor="#FF101A44"
-                android:endColor="#FF03040F" />
-            <stroke android:width="2dp" android:color="#AA60A5FA" />
+                android:startColor="?attr/colorSurfaceVariant"
+                android:endColor="?android:attr/colorBackground" />
+            <stroke android:width="2dp" android:color="?attr/colorPrimary" />
         </shape>
     </item>
 </layer-list>

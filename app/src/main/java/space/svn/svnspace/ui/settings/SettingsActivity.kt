@@ -1,14 +1,13 @@
 package space.svn.svnspace.ui.settings
 
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
+import space.svn.svnspace.ui.common.ThemedActivity
 import space.svn.svnspace.R
 import space.svn.svnspace.util.ThemeManager
 
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : ThemedActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        ThemeManager.applyToActivity(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
         setSupportActionBar(findViewById(R.id.toolbar))

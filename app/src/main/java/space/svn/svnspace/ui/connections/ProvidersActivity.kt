@@ -6,7 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
+import space.svn.svnspace.ui.common.ThemedActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -20,14 +20,13 @@ import space.svn.svnspace.databinding.ItemWatchedFolderBinding
 import space.svn.svnspace.util.ThemeManager
 
 /** Cloud Accounts / All Providers: every connection with an on/off toggle. */
-class ProvidersActivity : AppCompatActivity() {
+class ProvidersActivity : ThemedActivity() {
 
     private lateinit var binding: ActivityProvidersBinding
     private lateinit var repo: SvnRepository
     private var items: List<Pair<Connection, Boolean>> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        ThemeManager.applyToActivity(this)
         super.onCreate(savedInstanceState)
         binding = ActivityProvidersBinding.inflate(layoutInflater)
         setContentView(binding.root)

@@ -3,7 +3,7 @@ package space.svn.svnspace.ui.connections
 import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import space.svn.svnspace.ui.common.ThemedActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -17,7 +17,7 @@ import space.svn.svnspace.databinding.ActivityAddConnectionBinding
 import space.svn.svnspace.util.ThemeManager
 import java.util.UUID
 
-class AddConnectionActivity : AppCompatActivity() {
+class AddConnectionActivity : ThemedActivity() {
 
     private lateinit var binding: ActivityAddConnectionBinding
     private lateinit var repo: SvnRepository
@@ -34,7 +34,6 @@ class AddConnectionActivity : AppCompatActivity() {
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        ThemeManager.applyToActivity(this)
         super.onCreate(savedInstanceState)
         binding = ActivityAddConnectionBinding.inflate(layoutInflater)
         setContentView(binding.root)
