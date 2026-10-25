@@ -376,6 +376,26 @@ class GoogleDriveClient(
     fun listChildren(folderId: String, driveId: String? = null, pageToken: String? = null): DrivePage =
         listQuery("'${escape(folderId)}' in parents and trashed = false", driveId, pageToken, "folder,name_natural")
 
+    /**
+     * Every child of a My Drive folder (all pages, up to [limit]). With [foldersOnly] it
+     * returns real folders only, no shortcuts, so a path built from their names is one
+     * [ensureFolder] can walk back to.
+     */
+    fun listAllChildren(folderId: String, foldersOnly: Boolean = false, limit: Int = 2000): List<DriveItem> {
+        val q = buildString {
+            append("'${escape(folderId)}' in parents and trashed = false")
+            if (foldersOnly) append(" and mimeType = '$FOLDER_MIME'")
+        }
+        val out = ArrayList<DriveItem>()
+        var pageToken: String? = null
+        do {
+            val page = listQuery(q, null, pageToken, "folder,name_natural")
+            out.addAll(page.items)
+            pageToken = page.nextPageToken
+        } while (pageToken != null && out.size < limit)
+        return out
+    }
+
     /** One page of "Shared with me". */
     fun listSharedWithMe(pageToken: String? = null): DrivePage =
         listQuery("sharedWithMe = true and trashed = false", null, pageToken, "folder,modifiedTime desc")

@@ -27,7 +27,7 @@ object AuthState {
 
     fun label(reason: Reason): String = when (reason) {
         Reason.EXPIRED -> "Sign-in expired – tap Reconnect"
-        Reason.LIMITED_SCOPE -> "Limited access – reconnect to see all files"
+        Reason.LIMITED_SCOPE -> "Limited access – tap to reconnect and see all files"
         Reason.MISSING_LOGIN -> "Login needed – tap Reconnect"
     }
 }

@@ -84,13 +84,6 @@ class MainActivity : ThemedActivity() {
     }
 
     private fun confirmFreeUpSpace() {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.free_up_space_confirm_title)
-            .setMessage(R.string.free_up_space_confirm_message)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                FreeUpSpaceWorker.enqueue(this)
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        space.svn.svnspace.ui.common.FreeUpSpaceDialog.show(this, this)
     }
 }

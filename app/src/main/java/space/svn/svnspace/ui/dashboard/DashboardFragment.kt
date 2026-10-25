@@ -78,14 +78,7 @@ class DashboardFragment : Fragment() {
                 showScanState(running ?: waitingManual ?: infos?.filter { it.state.isFinished }?.lastOrNull())
             }
         binding.btnFreeUp.setOnClickListener {
-            AlertDialog.Builder(requireContext())
-                .setTitle(space.svn.svnspace.R.string.free_up_space_confirm_title)
-                .setMessage(space.svn.svnspace.R.string.free_up_space_confirm_message)
-                .setPositiveButton(android.R.string.ok) { _, _ ->
-                    FreeUpSpaceWorker.enqueue(requireContext())
-                }
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
+            space.svn.svnspace.ui.common.FreeUpSpaceDialog.show(requireContext(), viewLifecycleOwner)
         }
 
         refreshStorage()

@@ -22,7 +22,10 @@ import space.svn.svnspace.data.remote.WebDavClient
 import space.svn.svnspace.data.repository.SvnRepository
 import space.svn.svnspace.databinding.FragmentTreeBinding
 import space.svn.svnspace.ui.connections.AddConnectionActivity
+import space.svn.svnspace.ui.browser.CloudBrowserActivity
 import space.svn.svnspace.ui.connections.OAuthHelper
+import space.svn.svnspace.ui.connections.Reconnect
+import space.svn.svnspace.util.AuthState
 import space.svn.svnspace.ui.settings.WatchedFoldersActivity
 import space.svn.svnspace.util.StorageAccess
 
@@ -79,15 +82,20 @@ class CloudTreeFragment : Fragment() {
         val rows = mutableListOf<TreeNode>()
         rows.add(header("Cloud providers"))
         connections.forEach { c ->
+            // Providers open at their real top level (My Drive, or the server's root), not at
+            // the app's own backup folder, so files that were already there show up too.
+            val isDrive = c.type == ConnectionType.OAUTH_GOOGLE
+            val reason = AuthState.reasonFor(requireContext(), c.id)
             rows.add(
                 TreeNode(
                     id = c.id,
                     name = c.displayName,
-                    path = c.basePath ?: "/",
+                    path = if (isDrive) DRIVE_ROOT else "/",
                     isDirectory = true,
                     depth = 0,
                     connectionId = c.id,
-                    meta = "${providerLabel(c)} · ${c.basePath ?: "/"}"
+                    meta = reason?.let { AuthState.label(it) }
+                        ?: if (isDrive) "Google Drive · My Drive" else "${providerLabel(c)} · all folders"
                 )
             )
         }
@@ -124,6 +132,15 @@ class CloudTreeFragment : Fragment() {
                 ACTION_GOOGLE -> OAuthHelper.launchGoogle(requireContext())
                 ACTION_ADD -> startActivity(Intent(requireContext(), AddConnectionActivity::class.java))
                 ACTION_FOLDERS -> startActivity(Intent(requireContext(), WatchedFoldersActivity::class.java))
+                else -> {
+                    val a = node.action.orEmpty()
+                    when {
+                        a.startsWith(ACTION_RECONNECT) -> reconnect(a.removePrefix(ACTION_RECONNECT))
+                        a.startsWith(ACTION_BROWSE) -> startActivity(
+                            CloudBrowserActivity.intent(requireContext(), a.removePrefix(ACTION_BROWSE))
+                        )
+                    }
+                }
             }
             TreeNode.Kind.ITEM -> when {
                 !node.isDirectory -> Toast.makeText(requireContext(), node.name, Toast.LENGTH_SHORT).show()
@@ -170,6 +187,7 @@ class CloudTreeFragment : Fragment() {
 
     private fun loadRemoteChildren(node: TreeNode) {
         val connId = node.connectionId ?: return
+        val ctx = requireContext().applicationContext
         _binding?.swipe?.isRefreshing = true
         viewLifecycleOwner.lifecycleScope.launch {
             val children = withContext(Dispatchers.IO) {
@@ -178,8 +196,10 @@ class CloudTreeFragment : Fragment() {
                     val conn = repo.getConnection(connId)
                         ?: return@withContext listOf(message("This connection was removed", depth))
                     val secret = repo.getSecret(connId)
-                        ?: return@withContext listOf(message("Not signed in – connect this provider again", depth))
-                    val list = when (conn.type) {
+                        ?: return@withContext listOf(
+                            action("Not signed in – tap to connect it again", ACTION_RECONNECT + connId, depth)
+                        )
+                    when (conn.type) {
                         ConnectionType.WEBDAV, ConnectionType.CUSTOM_HTTP -> {
                             val host = conn.host
                                 ?: return@withContext listOf(message("Server address missing", depth))
@@ -189,50 +209,121 @@ class CloudTreeFragment : Fragment() {
                                 password = secret,
                                 useTls = conn.useTls
                             )
-                            client.list(node.path).map { entry ->
-                                TreeNode(
-                                    id = entry.path,
-                                    name = entry.name,
-                                    path = entry.path,
-                                    isDirectory = entry.isDirectory,
-                                    depth = depth,
-                                    connectionId = connId
-                                )
-                            }
+                            val list = client.list(node.path)
+                                .sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
+                                .map { entry ->
+                                    TreeNode(
+                                        id = "$connId:${entry.path}",
+                                        name = entry.name,
+                                        path = entry.path,
+                                        isDirectory = entry.isDirectory,
+                                        size = entry.size,
+                                        depth = depth,
+                                        connectionId = connId
+                                    )
+                                }
+                            val rows = mutableListOf<TreeNode>()
+                            if (node.depth == 0) rows.add(action("Open in file browser", ACTION_BROWSE + connId, depth))
+                            rows.addAll(list.ifEmpty { listOf(message("Empty folder", depth)) })
+                            rows
                         }
-                        ConnectionType.OAUTH_GOOGLE -> {
-                            val drive = GoogleDriveClient(OAuthHelper.GOOGLE_CLIENT_ID, secret)
-                            drive.list(node.path).map { entry ->
-                                TreeNode(
-                                    id = entry.id,
-                                    name = entry.name,
-                                    path = entry.path,
-                                    isDirectory = entry.isDirectory,
-                                    size = entry.size,
-                                    depth = depth,
-                                    connectionId = connId
-                                )
-                            }
-                        }
-                        else -> return@withContext listOf(message("Browsing this provider isn't supported yet", depth))
+                        ConnectionType.OAUTH_GOOGLE -> driveChildren(ctx, node, connId, secret, depth)
+                        else -> listOf(message("Browsing this provider isn't supported yet", depth))
                     }
-                    list.ifEmpty {
-                        listOf(
-                            message(
-                                if (node.depth == 0) "Nothing backed up here yet – tap Scan Now on Home"
-                                else "Empty folder",
-                                depth
-                            )
-                        )
-                    }
+                } catch (e: GoogleDriveClient.ScopeUpgradeRequiredException) {
+                    AuthState.markNeedsReconnect(ctx, connId, AuthState.Reason.LIMITED_SCOPE)
+                    listOf(action("Limited Google access – tap to reconnect", ACTION_RECONNECT + connId, depth))
                 } catch (e: GoogleDriveClient.ReauthRequiredException) {
-                    listOf(message("Google sign-in expired – connect it again", depth))
+                    AuthState.markNeedsReconnect(ctx, connId, AuthState.Reason.EXPIRED)
+                    listOf(action("Google sign-in expired – tap to reconnect", ACTION_RECONNECT + connId, depth))
                 } catch (e: Exception) {
                     listOf(message("Couldn't load: ${e.message ?: e.javaClass.simpleName}", depth))
                 }
             }
             _binding?.swipe?.isRefreshing = false
             adapter.expand(node, children)
+        }
+    }
+
+    /**
+     * Google Drive rows, listed by folder ID like the Drive app: the provider row shows the
+     * top of My Drive plus "Shared with me". Before, it listed the app's /svn-space folder
+     * only, so files that were already in the account never showed.
+     */
+    private fun driveChildren(
+        ctx: android.content.Context,
+        node: TreeNode,
+        connId: String,
+        secret: String,
+        depth: Int
+    ): List<TreeNode> {
+        val drive = GoogleDriveClient(OAuthHelper.GOOGLE_CLIENT_ID, secret)
+        val rows = mutableListOf<TreeNode>()
+        if (node.depth == 0) {
+            // An old login from before the full-Drive change can only see files this app
+            // made, and Google returns that smaller list without any error. Say so.
+            when (drive.grantedFullDrive()) {
+                false -> {
+                    AuthState.markNeedsReconnect(ctx, connId, AuthState.Reason.LIMITED_SCOPE)
+                    rows.add(
+                        action(
+                            "Limited access: only files svn-space made are shown. Tap to reconnect",
+                            ACTION_RECONNECT + connId, depth
+                        )
+                    )
+                }
+                true -> if (AuthState.reasonFor(ctx, connId) == AuthState.Reason.LIMITED_SCOPE) {
+                    AuthState.clear(ctx, connId)
+                }
+                null -> {}
+            }
+            rows.add(action("Open in file browser", ACTION_BROWSE + connId, depth))
+        }
+        val items = when {
+            node.path == DRIVE_SHARED -> drive.listSharedWithMe().items
+            node.path.startsWith(ID_PREFIX) -> drive.listAllChildren(node.path.removePrefix(ID_PREFIX))
+            else -> drive.listAllChildren("root")
+        }
+        items.forEach { item ->
+            val folderId = item.targetId ?: item.id
+            rows.add(
+                TreeNode(
+                    id = "$connId:${item.id}:${node.id}",
+                    name = item.name,
+                    path = ID_PREFIX + folderId,
+                    isDirectory = item.isFolder,
+                    size = item.size,
+                    depth = depth,
+                    connectionId = connId,
+                    meta = when {
+                        item.isFolder -> if (item.isShortcut) "Shortcut to folder" else null
+                        item.isGoogleType -> "Google file"
+                        else -> null
+                    }
+                )
+            )
+        }
+        if (items.isEmpty()) rows.add(message("Empty folder", depth))
+        if (node.depth == 0) {
+            rows.add(
+                TreeNode(
+                    id = "$connId:shared",
+                    name = "Shared with me",
+                    path = DRIVE_SHARED,
+                    isDirectory = true,
+                    depth = depth,
+                    connectionId = connId
+                )
+            )
+        }
+        return rows
+    }
+
+    private fun reconnect(connId: String) {
+        val activity = activity ?: return
+        viewLifecycleOwner.lifecycleScope.launch {
+            val conn = withContext(Dispatchers.IO) { repo.getConnection(connId) } ?: return@launch
+            Reconnect.start(activity, viewLifecycleOwner.lifecycleScope, repo, conn) { render() }
         }
     }
 
@@ -250,8 +341,14 @@ class CloudTreeFragment : Fragment() {
     private fun message(text: String, depth: Int = 0) =
         TreeNode(id = "m:$text", name = text, path = "", isDirectory = false, depth = depth, kind = TreeNode.Kind.MESSAGE)
 
-    private fun action(text: String, action: String) =
-        TreeNode(id = "a:$action", name = text, path = "", isDirectory = false, kind = TreeNode.Kind.ACTION, action = action)
+    private fun action(text: String, action: String, depth: Int = 0) =
+        TreeNode(id = "a:$action", name = text, path = "", isDirectory = false, depth = depth, kind = TreeNode.Kind.ACTION, action = action)
+
+    override fun onResume() {
+        super.onResume()
+        // Coming back from a reconnect: refresh the rows and their status labels.
+        if (_binding != null && (connections.isNotEmpty() || folders.isNotEmpty())) render()
+    }
 
     override fun onDestroyView() {
         super.onDestroyView()
@@ -262,5 +359,10 @@ class CloudTreeFragment : Fragment() {
         private const val ACTION_GOOGLE = "google"
         private const val ACTION_ADD = "add"
         private const val ACTION_FOLDERS = "folders"
+        private const val ACTION_RECONNECT = "reconnect:"
+        private const val ACTION_BROWSE = "browse:"
+        private const val DRIVE_ROOT = "drive:root"
+        private const val DRIVE_SHARED = "drive:shared"
+        private const val ID_PREFIX = "id:"
     }
 }

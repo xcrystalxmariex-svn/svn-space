@@ -10,7 +10,11 @@ import space.svn.svnspace.ui.common.ThemedActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import space.svn.svnspace.data.remote.GoogleDriveClient
 import space.svn.svnspace.R
 import space.svn.svnspace.data.model.Connection
 import space.svn.svnspace.data.model.ConnectionType
@@ -103,7 +107,7 @@ class ProvidersActivity : ThemedActivity() {
                     .show()
             }
             b.root.setOnClickListener {
-                if (reason == AuthState.Reason.EXPIRED || reason == AuthState.Reason.MISSING_LOGIN) {
+                if (reason != null) {
                     Reconnect.start(this@ProvidersActivity, lifecycleScope, repo, conn) { notifyDataSetChanged() }
                 } else {
                     startActivity(CloudBrowserActivity.intent(this@ProvidersActivity, conn.id))
@@ -128,6 +132,41 @@ class ProvidersActivity : ThemedActivity() {
         super.onResume()
         // Reconnect state lives outside the database, so refresh the rows when coming back.
         binding.recycler.adapter?.notifyDataSetChanged()
+        checkGoogleScopes()
+    }
+
+    /**
+     * Google logins from before the full-Drive change only see files the app made, and
+     * Google gives no error for that. Check each one so its row says "Limited access".
+     */
+    private fun checkGoogleScopes() {
+        lifecycleScope.launch {
+            val changed = withContext(Dispatchers.IO) {
+                var any = false
+                repo.observeConnections().first()
+                    .filter { it.type == ConnectionType.OAUTH_GOOGLE }
+                    .forEach { c ->
+                        val secret = repo.getSecret(c.id) ?: return@forEach
+                        val before = AuthState.reasonFor(this@ProvidersActivity, c.id)
+                        val full = try {
+                            GoogleDriveClient(OAuthHelper.GOOGLE_CLIENT_ID, secret).grantedFullDrive()
+                        } catch (e: GoogleDriveClient.ReauthRequiredException) {
+                            AuthState.markNeedsReconnect(this@ProvidersActivity, c.id, AuthState.Reason.EXPIRED)
+                            any = any || before != AuthState.Reason.EXPIRED
+                            return@forEach
+                        }
+                        if (full == false && before != AuthState.Reason.LIMITED_SCOPE) {
+                            AuthState.markNeedsReconnect(this@ProvidersActivity, c.id, AuthState.Reason.LIMITED_SCOPE)
+                            any = true
+                        } else if (full == true && before == AuthState.Reason.LIMITED_SCOPE) {
+                            AuthState.clear(this@ProvidersActivity, c.id)
+                            any = true
+                        }
+                    }
+                any
+            }
+            if (changed) binding.recycler.adapter?.notifyDataSetChanged()
+        }
     }
 
     override fun onSupportNavigateUp(): Boolean {

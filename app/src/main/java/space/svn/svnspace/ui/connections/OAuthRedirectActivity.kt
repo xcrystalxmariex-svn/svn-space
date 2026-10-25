@@ -86,6 +86,9 @@ class OAuthRedirectActivity : ThemedActivity() {
                 return@performTokenRequest
             }
             val email = emailFromIdToken(tokenResponse.idToken)
+            // Google's consent screen lets people untick the Drive box. Then the login
+            // works but only sees files this app made, so flag it instead of hiding it.
+            val fullDrive = tokenResponse.scope?.split(' ')?.contains(GoogleDriveClient.FULL_DRIVE_SCOPE) ?: true
 
             lifecycleScope.launch {
                 val repo = SvnRepository(this@OAuthRedirectActivity)
@@ -117,11 +120,21 @@ class OAuthRedirectActivity : ThemedActivity() {
                 withContext(Dispatchers.IO) {
                     repo.saveConnection(conn.copy(isEnabled = true, username = email ?: conn.username), refresh)
                     AuthState.clear(this@OAuthRedirectActivity, conn.id)
+                    if (!fullDrive) {
+                        AuthState.markNeedsReconnect(this@OAuthRedirectActivity, conn.id, AuthState.Reason.LIMITED_SCOPE)
+                    }
                     tokenResponse.accessToken?.let {
                         SecureStore(this@OAuthRedirectActivity).putSecret("conn_${conn.id}_access", it)
                     }
                 }
-                Toast.makeText(
+                if (!fullDrive) {
+                    Toast.makeText(
+                        this@OAuthRedirectActivity,
+                        "Connected${email?.let { " ($it)" } ?: ""}, but without full Drive access, so only files " +
+                            "svn-space made will show. Tap Reconnect and tick the Google Drive box to see everything.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else Toast.makeText(
                     this@OAuthRedirectActivity,
                     if (existing != null) "Google Drive login refreshed for $email"
                     else "Google Drive connected${email?.let { " ($it)" } ?: ""}",

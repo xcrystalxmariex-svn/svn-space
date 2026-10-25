@@ -19,6 +19,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import space.svn.svnspace.data.model.Connection
+import space.svn.svnspace.data.model.ConnectionType
+import space.svn.svnspace.data.remote.GoogleDriveClient
 import space.svn.svnspace.data.model.FileFilter
 import space.svn.svnspace.data.model.WatchedFolder
 import space.svn.svnspace.data.repository.SvnRepository
@@ -362,7 +364,52 @@ class WatchedFoldersActivity : ThemedActivity() {
             b.spinnerConnection.setSelection(if (idx >= 0) idx + offset else 0)
         }
 
-        b.editRemotePath.setText(folder.remotePath.orEmpty())
+        // Destination folder in the cloud: picked from the provider's real folders.
+        // null = automatic (Drive: svn-space/<folder name>; WebDAV: the server's base path).
+        val savedConn = conns.firstOrNull { it.id == folder.connectionId }
+        var chosenRemote: String? = folder.remotePath?.takeIf {
+            // The worker treats "/" on Drive as automatic, so show it that way.
+            it.isNotBlank() && !(it == "/" && savedConn?.type == ConnectionType.OAUTH_GOOGLE)
+        }
+        var chosenFor: String? = folder.connectionId
+        fun selectedConn(): Connection? =
+            if (conns.isEmpty()) null else conns.getOrNull(b.spinnerConnection.selectedItemPosition - offset)
+        fun refreshRemote() {
+            val c = selectedConn()
+            if (c != null && chosenFor != null && c.id != chosenFor) {
+                // A folder picked in one account doesn't exist in another: back to automatic.
+                chosenRemote = null
+            }
+            chosenFor = c?.id ?: chosenFor
+            val isDrive = c?.type == ConnectionType.OAUTH_GOOGLE
+            val top = if (isDrive) "My Drive" else "Server"
+            b.txtRemotePath.text = when {
+                c == null -> "Choose an account first"
+                chosenRemote != null -> top + chosenRemote!!.let { if (it == "/") " (top level)" else it.replace("/", " \u203a ") }
+                isDrive -> "Automatic: My Drive" +
+                    "${c.basePath ?: GoogleDriveClient.DEFAULT_ROOT}/${folder.displayPath}".replace("/", " \u203a ")
+                else -> "Automatic: " + (c.basePath?.takeIf { it.isNotBlank() } ?: "/")
+            }
+            b.btnPickRemote.isEnabled = c != null
+            b.btnAutoRemote.visibility = if (chosenRemote != null) View.VISIBLE else View.GONE
+        }
+        refreshRemote()
+        b.spinnerConnection.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) = refreshRemote()
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        b.btnPickRemote.setOnClickListener {
+            val c = selectedConn() ?: return@setOnClickListener
+            RemoteFolderPicker(this, repo, c, chosenRemote) { picked ->
+                chosenRemote = picked
+                chosenFor = c.id
+                refreshRemote()
+            }.show()
+        }
+        b.btnAutoRemote.setOnClickListener {
+            chosenRemote = null
+            refreshRemote()
+        }
 
         val filters = FileFilter.entries
         val filterLabels = listOf("All files", "Images", "Videos", "Documents", "Audio", "Custom extensions…")
@@ -401,7 +448,7 @@ class WatchedFoldersActivity : ThemedActivity() {
                     .map { it.trim().removePrefix(".").lowercase() }
                     .filter { it.isNotBlank() }
                     .distinct()
-                val remote = b.editRemotePath.text?.toString()?.trim().orEmpty()
+                val remote = chosenRemote.orEmpty()
                 val updated = folder.copy(
                     connectionId = conn?.id ?: folder.connectionId,
                     remotePath = remote.ifBlank { null },

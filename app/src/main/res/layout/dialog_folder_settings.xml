@@ -43,17 +43,42 @@
             android:visibility="gone"
             android:paddingBottom="8dp" />
 
-        <com.google.android.material.textfield.TextInputLayout
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="Cloud destination path (blank = automatic)">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/edit_remote_path"
-                android:layout_width="match_parent"
+            android:layout_marginTop="12dp"
+            android:text="Back up into"
+            android:textStyle="bold"
+            android:textColor="?attr/colorOnSurface" />
+
+        <TextView
+            android:id="@+id/txt_remote_path"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="4dp"
+            android:textColor="?attr/colorOnSurface"
+            android:alpha="0.85" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_pick_remote"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:inputType="textUri" />
-        </com.google.android.material.textfield.TextInputLayout>
+                android:text="Choose folder…" />
+
+            <Button
+                android:id="@+id/btn_auto_remote"
+                style="?attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Use automatic"
+                android:visibility="gone" />
+        </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"

@@ -2,7 +2,6 @@ package space.svn.svnspace.worker
 
 import android.content.Context
 import android.util.Log
-import androidx.documentfile.provider.DocumentFile
 import androidx.work.CoroutineWorker
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -11,11 +10,13 @@ import androidx.work.workDataOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import space.svn.svnspace.data.repository.SvnRepository
+import java.util.UUID
 
 /**
  * Deletes local files that have a verified BackupRecord.
  * Safety: only verified records are touched. Deletion uses DocumentFile / SAF.
- * After successful local delete the record is removed from the database.
+ * After successful local delete the file's records are removed from the database.
+ * The list comes from [FreeUpSpacePlan], the same one the confirmation dialog totals.
  */
 class FreeUpSpaceWorker(
     private val appContext: Context,
@@ -29,40 +30,27 @@ class FreeUpSpaceWorker(
         var failed = 0
 
         try {
-            val records = repo.getVerifiedRecords()
-            Log.i(TAG, "Found ${records.size} verified records to consider")
+            val plan = FreeUpSpacePlan.build(appContext, repo)
+            Log.i(TAG, "Plan: ${plan.fileCount} files, ${plan.totalBytes} bytes, ${plan.staleRecords.size} stale records")
 
-            for (record in records) {
+            for (c in plan.candidates) {
                 try {
-                    // Handles both picker (content://) files and Downloads (file://) files.
-                    // Without All files access a Downloads file just looks missing; leave it.
-                    if (space.svn.svnspace.util.StorageAccess.isFileUri(record.localUri) &&
-                        !space.svn.svnspace.util.StorageAccess.hasAllFilesAccess(appContext)
-                    ) continue
-                    val doc = space.svn.svnspace.util.StorageAccess.singleDocument(appContext, record.localUri)
-
-                    if (doc != null && doc.exists() && doc.isFile) {
-                        val size = doc.length()
-                        val deleted = doc.delete()
-                        if (deleted) {
-                            repo.deleteRecord(record.id)
-                            freedBytes += size
-                            freedCount++
-                            Log.i(TAG, "Deleted local: ${record.localPath}")
-                        } else {
-                            failed++
-                            Log.w(TAG, "Could not delete: ${record.localPath}")
-                        }
+                    if (c.doc.delete()) {
+                        c.records.forEach { repo.deleteRecord(it.id) }
+                        freedBytes += c.sizeBytes
+                        freedCount++
+                        Log.i(TAG, "Deleted local: ${c.records.first().localPath}")
                     } else {
-                        // File already gone – clean up the record
-                        repo.deleteRecord(record.id)
-                        Log.i(TAG, "Record cleaned (file missing): ${record.localPath}")
+                        failed++
+                        Log.w(TAG, "Could not delete: ${c.records.first().localPath}")
                     }
                 } catch (e: Exception) {
                     failed++
-                    Log.e(TAG, "Error processing ${record.localUri}", e)
+                    Log.e(TAG, "Error deleting ${c.records.first().localUri}", e)
                 }
             }
+            // File already gone – clean up its records.
+            plan.staleRecords.forEach { runCatching { repo.deleteRecord(it.id) } }
 
             val output = workDataOf(
                 KEY_FREED_BYTES to freedBytes,
@@ -83,9 +71,10 @@ class FreeUpSpaceWorker(
         const val KEY_FREED_COUNT = "freed_count"
         const val KEY_FAILED = "failed"
 
-        fun enqueue(context: Context) {
+        fun enqueue(context: Context): UUID {
             val request = OneTimeWorkRequestBuilder<FreeUpSpaceWorker>().build()
             WorkManager.getInstance(context).enqueue(request)
+            return request.id
         }
     }
 }

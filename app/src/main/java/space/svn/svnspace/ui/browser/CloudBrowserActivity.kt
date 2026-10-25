@@ -175,7 +175,7 @@ class CloudBrowserActivity : ThemedActivity() {
         AuthState.reasonFor(this, conn.id)?.let { if (it == AuthState.Reason.LIMITED_SCOPE) showBanner(it) }
         stack.clear()
         val start = if (conn.type == ConnectionType.WEBDAV || conn.type == ConnectionType.CUSTOM_HTTP) {
-            CloudLocation(conn.basePath?.takeIf { it.isNotBlank() } ?: "/", conn.displayName)
+            CloudLocation("/", conn.displayName)
         } else src.root
         stack.add(start)
         reload()
