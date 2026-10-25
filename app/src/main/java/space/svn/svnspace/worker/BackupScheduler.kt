@@ -8,6 +8,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import java.util.concurrent.TimeUnit
@@ -78,18 +79,37 @@ object BackupScheduler {
      * "no internet" itself rather than sitting queued). Unique, so repeated taps
      * don't stack up scans; the dashboard watches this name for progress.
      */
-    fun scanNow(context: Context) {
+    fun scanNow(context: Context): ScanStart {
+        val wm = WorkManager.getInstance(context)
+        // Before: KEEP. If an earlier Scan Now was still unfinished (stalled, or busy without
+        // saying so), the tap was silently dropped and the dashboard sat on "starting…".
+        // Now a scan that's alive (recent heartbeat) is kept and reported; anything else is
+        // replaced with a fresh scan.
+        val active = try {
+            wm.getWorkInfosForUniqueWork(SCAN_NOW_WORK).get(5, TimeUnit.SECONDS)
+                .firstOrNull { !it.state.isFinished }
+        } catch (e: Exception) {
+            null
+        }
+        if (active != null && active.state == WorkInfo.State.RUNNING) {
+            val beat = active.progress.getLong(ScanAndBackupWorker.KEY_HEARTBEAT, 0L)
+            if (System.currentTimeMillis() - beat < ScanAndBackupWorker.STALE_MS) return ScanStart.ALREADY_RUNNING
+        }
         val request = OneTimeWorkRequestBuilder<ScanAndBackupWorker>()
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .setInputData(workDataOf(ScanAndBackupWorker.KEY_MANUAL to true))
             .addTag(SCAN_TAG)
             .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            SCAN_NOW_WORK,
-            ExistingWorkPolicy.KEEP,
-            request
-        )
+        wm.enqueueUniqueWork(SCAN_NOW_WORK, ExistingWorkPolicy.REPLACE, request)
+        context.getSharedPreferences(ScanAndBackupWorker.PREFS, Context.MODE_PRIVATE).edit()
+            .putLong(KEY_SCAN_REQUESTED_AT, System.currentTimeMillis()).apply()
+        return if (active != null) ScanStart.RESTARTED else ScanStart.STARTED
     }
+
+    enum class ScanStart { STARTED, RESTARTED, ALREADY_RUNNING }
+
+    /** When Scan Now was last tapped, to tell "about to start" from "Android isn't starting it". */
+    const val KEY_SCAN_REQUESTED_AT = "scan_requested_at"
 
     /**
      * Change detection between scheduled scans. JobScheduler watches MediaStore and runs

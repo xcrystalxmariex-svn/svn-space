@@ -388,7 +388,7 @@ class WatchedFoldersActivity : ThemedActivity() {
                 chosenRemote != null -> top + chosenRemote!!.let { if (it == "/") " (top level)" else it.replace("/", " \u203a ") }
                 isDrive -> "Automatic: My Drive" +
                     "${c.basePath ?: GoogleDriveClient.DEFAULT_ROOT}/${folder.displayPath}".replace("/", " \u203a ")
-                else -> "Automatic: " + (c.basePath?.takeIf { it.isNotBlank() } ?: "/")
+                else -> "Automatic: top folder of the server"
             }
             b.btnPickRemote.isEnabled = c != null
             b.btnAutoRemote.visibility = if (chosenRemote != null) View.VISIBLE else View.GONE

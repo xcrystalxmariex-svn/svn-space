@@ -162,12 +162,7 @@ class RemoteFolderPicker(
                     val l: Lister = when (conn.type) {
                         ConnectionType.OAUTH_GOOGLE -> DriveLister(activity, conn.id, secret)
                         ConnectionType.WEBDAV, ConnectionType.CUSTOM_HTTP -> WebDavLister(
-                            WebDavClient(
-                                baseUrl = conn.host ?: error("Server address missing"),
-                                username = conn.username ?: "",
-                                password = secret,
-                                useTls = conn.useTls
-                            )
+                            WebDavClient.forConnection(conn, secret)
                         )
                         else -> error("Picking folders isn't supported for this provider yet")
                     }

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Self-hosted servers (AList, NAS boxes, WebDAV on the home network) often run plain http,
+  so cleartext is allowed. https still works as usual. User-installed certificates are
+  trusted too, so a server with its own (self-signed) certificate can be used after its
+  certificate is installed on the phone.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -163,7 +163,7 @@ class CloudBrowserActivity : ThemedActivity() {
                     showEmpty("This account has no server address. Edit it in Cloud Accounts.")
                     return
                 }
-                WebDavSource(WebDavClient(host, conn.username ?: "", secret, conn.useTls), conn.displayName)
+                WebDavSource(WebDavClient.forConnection(conn, secret), conn.displayName)
             }
             else -> {
                 showEmpty("Browsing this kind of account isn't supported yet.")

@@ -45,4 +45,15 @@
             app:summary="Choose where each watched folder backs up to, the remote folder and which file types" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="Backup of these settings">
+        <Preference
+            app:key="pref_export_settings"
+            app:title="Export settings"
+            app:summary="Save accounts, watched folders, theme and scan interval to a file. Passwords and sign-ins aren't included." />
+        <Preference
+            app:key="pref_import_settings"
+            app:title="Import settings"
+            app:summary="Restore from an exported file. You'll see what's in it before anything changes." />
+    </PreferenceCategory>
+
 </PreferenceScreen>

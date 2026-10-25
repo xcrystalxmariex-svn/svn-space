@@ -201,14 +201,8 @@ class CloudTreeFragment : Fragment() {
                         )
                     when (conn.type) {
                         ConnectionType.WEBDAV, ConnectionType.CUSTOM_HTTP -> {
-                            val host = conn.host
-                                ?: return@withContext listOf(message("Server address missing", depth))
-                            val client = WebDavClient(
-                                baseUrl = host,
-                                username = conn.username ?: "",
-                                password = secret,
-                                useTls = conn.useTls
-                            )
+                            if (conn.host.isNullOrBlank()) return@withContext listOf(message("Server address missing", depth))
+                            val client = WebDavClient.forConnection(conn, secret)
                             val list = client.list(node.path)
                                 .sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
                                 .map { entry ->
@@ -237,7 +231,7 @@ class CloudTreeFragment : Fragment() {
                     AuthState.markNeedsReconnect(ctx, connId, AuthState.Reason.EXPIRED)
                     listOf(action("Google sign-in expired – tap to reconnect", ACTION_RECONNECT + connId, depth))
                 } catch (e: Exception) {
-                    listOf(message("Couldn't load: ${e.message ?: e.javaClass.simpleName}", depth))
+                    listOf(message("Couldn't load: ${WebDavClient.describe(e)}", depth))
                 }
             }
             _binding?.swipe?.isRefreshing = false

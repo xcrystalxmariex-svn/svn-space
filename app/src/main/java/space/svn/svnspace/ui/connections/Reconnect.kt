@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import space.svn.svnspace.data.model.Connection
 import space.svn.svnspace.data.model.ConnectionType
+import space.svn.svnspace.data.remote.WebDavAddress
 import space.svn.svnspace.data.remote.WebDavClient
 import space.svn.svnspace.data.repository.SvnRepository
 import space.svn.svnspace.util.AuthState
@@ -38,26 +39,30 @@ object Reconnect {
         val frame = android.widget.FrameLayout(activity).apply { setPadding(pad, pad / 2, pad, 0); addView(input) }
         AlertDialog.Builder(activity)
             .setTitle("Reconnect ${conn.displayName}")
-            .setMessage(conn.host)
+            .setMessage(conn.host?.let { h -> runCatching { WebDavAddress.endpoint(h, conn.port, conn.basePath) }.getOrDefault(h) })
             .setView(frame)
             .setPositiveButton("Connect") { _, _ ->
                 val password = input.text.toString()
                 scope.launch {
-                    val ok = withContext(Dispatchers.IO) {
+                    // Same address + Path field as scans and browsing; null error = signed in.
+                    val error = withContext(Dispatchers.IO) {
                         try {
-                            WebDavClient(conn.host ?: "", conn.username ?: "", password).list(conn.basePath ?: "/")
-                            true
+                            WebDavClient.forConnection(conn, password).probe()
                         } catch (e: Exception) {
-                            false
+                            WebDavClient.describe(e)
                         }
                     }
-                    if (ok) {
+                    if (error == null) {
                         withContext(Dispatchers.IO) { repo.saveConnection(conn.copy(isEnabled = true), password) }
                         AuthState.clear(activity, conn.id)
                         Toast.makeText(activity, "${conn.displayName} reconnected", Toast.LENGTH_SHORT).show()
                         onDone()
                     } else {
-                        Toast.makeText(activity, "Couldn't sign in. Check the password and try again.", Toast.LENGTH_LONG).show()
+                        AlertDialog.Builder(activity)
+                            .setTitle("Couldn't reconnect ${conn.displayName}")
+                            .setMessage(error)
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show()
                     }
                 }
             }

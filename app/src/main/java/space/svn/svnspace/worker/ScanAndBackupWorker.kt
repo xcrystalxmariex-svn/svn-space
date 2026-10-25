@@ -13,7 +13,12 @@ import androidx.work.Data
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import space.svn.svnspace.SvnSpaceApp
 import space.svn.svnspace.data.model.BackupRecord
@@ -94,6 +99,47 @@ class ScanAndBackupWorker(
             }
         }
 
+        // Report right away and then every few seconds, so the dashboard always knows this
+        // scan is alive (and can tell a stuck one apart), even during a long upload.
+        phase = "Starting"
+        report(force = true)
+        val heartbeat = launch {
+            while (isActive) {
+                delay(HEARTBEAT_MS)
+                report(force = true)
+            }
+        }
+        try {
+            // One scan at a time. Background scans (schedule, new files) skip when another is
+            // running; Scan Now waits for it.
+            if (!scanLock.tryLock()) {
+                if (!manual) {
+                    Log.i(TAG, "Another scan is running; skipping this background scan")
+                    return@withContext Result.success()
+                }
+                phase = "Waiting for a background scan to finish"
+                report(force = true)
+                scanLock.lock()
+            }
+            try {
+                runScan(manual)
+            } finally {
+                scanLock.unlock()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            // Anything not caught below (even an Error) still ends with a summary, so the
+            // dashboard never keeps showing an old result.
+            Log.e(TAG, "ScanAndBackupWorker crashed", t)
+            stats.problems.add("Scan stopped by an error: ${t.message ?: t.javaClass.simpleName}")
+            finish(Result.failure())
+        } finally {
+            heartbeat.cancel()
+        }
+    }
+
+    private suspend fun runScan(manual: Boolean): Result {
         val repo = SvnRepository(appContext)
         try {
             val folders = repo.getEnabledWatchedFolders()
@@ -102,11 +148,11 @@ class ScanAndBackupWorker(
 
             if (folders.isEmpty()) {
                 stats.problems.add("No watched folders turned on")
-                return@withContext finish(Result.success())
+                return finish(Result.success())
             }
             if (!isOnline()) {
                 stats.problems.add("No internet connection")
-                return@withContext finish(Result.success())
+                return finish(Result.success())
             }
 
             for (original in folders) {
@@ -118,7 +164,9 @@ class ScanAndBackupWorker(
                     if (every > 0 && System.currentTimeMillis() - last < every * 60_000L - 60_000L) continue
                     if (StorageAccess.pauseOnLowBattery(appContext, folder.id) && StorageAccess.isBatteryLow(appContext)) continue
                 }
-                setProgress(workDataOf(KEY_CURRENT to folder.displayPath, KEY_UPLOADED to stats.uploaded))
+                currentFolder = folder.displayPath
+                phase = "Scanning"
+                report(force = true)
 
                 // Folders added before per-folder settings worked have no destination.
                 // With exactly one connection there's only one place they can go.
@@ -197,6 +245,8 @@ class ScanAndBackupWorker(
                 } catch (e: WebDavClient.AuthException) {
                     AuthState.markNeedsReconnect(appContext, conn.id, AuthState.Reason.MISSING_LOGIN)
                     stats.problems.add("${conn.displayName}: the server refused the login – Cloud Accounts → Reconnect")
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Log.e(TAG, "Folder ${folder.displayPath} failed", e)
                     stats.problems.add("${folder.displayPath}: ${e.message ?: e.javaClass.simpleName}")
@@ -212,11 +262,38 @@ class ScanAndBackupWorker(
                     )
                 )
             }
-            finish(Result.success())
+            return finish(Result.success())
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "ScanAndBackupWorker failed", e)
             stats.problems.add(e.message ?: e.javaClass.simpleName)
-            finish(Result.failure())
+            return finish(Result.failure())
+        }
+    }
+
+    @Volatile private var phase = "Starting"
+    @Volatile private var currentFolder: String? = null
+    @Volatile private var checked = 0
+    @Volatile private var lastReport = 0L
+
+    /** Progress for the dashboard: what it's doing, how far, and a heartbeat time. */
+    private suspend fun report(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastReport < 1_000) return
+        lastReport = now
+        try {
+            setProgress(workDataOf(
+                KEY_PHASE to phase,
+                KEY_CURRENT to currentFolder,
+                KEY_UPLOADED to stats.uploaded,
+                KEY_CHECKED to checked,
+                KEY_HEARTBEAT to now
+            ))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't report progress: ${e.message}")
         }
     }
 
@@ -296,22 +373,18 @@ class ScanAndBackupWorker(
         conn: Connection,
         password: String
     ): Pair<RemoteTarget, String> {
-        val base = (conn.host ?: throw IllegalStateException("server address missing")).trimEnd('/')
-        val client = WebDavClient(
-            baseUrl = base,
-            username = conn.username ?: "",
-            password = password,
-            useTls = conn.useTls
-        )
-        val remoteBase = (folder.remotePath ?: conn.basePath ?: "/").trimEnd('/')
+        // Address + Path field (e.g. http://nas:5244 + /dav), joined the same way everywhere.
+        val client = WebDavClient.forConnection(conn, password)
+        // Paths are relative to that address; "automatic" is its top folder.
+        val remoteBase = (folder.remotePath ?: "/").trimEnd('/')
         try {
-            client.mkcol(remoteBase)
+            client.mkcols(remoteBase)
         } catch (e: WebDavClient.AuthException) {
             throw e
         } catch (_: Exception) { /* may already exist */ }
 
         val target = object : RemoteTarget {
-            override fun mkdir(path: String) { client.mkcol(path) }
+            override fun mkdir(path: String) { client.mkcols(path) }
             override fun upload(file: File, path: String) { client.upload(file, path) }
         }
         return target to remoteBase
@@ -351,6 +424,8 @@ class ScanAndBackupWorker(
             if (!child.isFile || !matchesName(name, folder)) continue
             if (cutoff > 0 && child.lastModified() < cutoff) continue
 
+            checked++
+            report()
             val uri = android.net.Uri.fromFile(child).toString()
             val existing = repo.findRecord(uri, connectionId)
             if (existing != null && existing.verified && existing.sizeBytes == child.length() &&
@@ -371,6 +446,8 @@ class ScanAndBackupWorker(
             } catch (e: GoogleDriveClient.ReauthRequiredException) {
                 throw e
             } catch (e: WebDavClient.AuthException) {
+                throw e
+            } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 stats.failedFiles++
@@ -404,7 +481,7 @@ class ScanAndBackupWorker(
         )
         repo.saveRecord(record)
         stats.uploaded++
-        setProgress(workDataOf(KEY_CURRENT to folder.displayPath, KEY_UPLOADED to stats.uploaded))
+        report(force = true)
         Log.i(TAG, "Backed up: $localPath → $remotePath")
     }
 
@@ -414,20 +491,24 @@ class ScanAndBackupWorker(
         client: RemoteTarget,
         remoteDir: String,
         folder: WatchedFolder,
-        connectionId: String
+        connectionId: String,
+        topDir: DocumentFile = dir
     ) {
         if (isStopped) return
         val children = dir.listFiles()
+        // The top folder was made before the walk; sub-folders are only made on the server
+        // when a file in them needs uploading (no network call per folder otherwise).
+        var madeRemoteDir = dir == topDir
         for (child in children) {
             if (isStopped) return
             val childName = child.name ?: continue
             // Half-finished downloads and trashed items aren't real files yet.
             if (childName.startsWith(".pending-") || childName.startsWith(".trashed-")) continue
             if (child.isDirectory) {
-                val subRemote = "$remoteDir/$childName"
-                try { client.mkdir(subRemote) } catch (_: Exception) {}
-                walkAndUpload(repo, child, client, subRemote, folder, connectionId)
+                walkAndUpload(repo, child, client, "$remoteDir/$childName", folder, connectionId, topDir)
             } else if (child.isFile && matchesFilter(child, folder)) {
+                checked++
+                report()
                 val existing = repo.findRecord(child.uri.toString(), connectionId)
                 if (existing != null && existing.verified && existing.sizeBytes == child.length() &&
                     existing.backedUpAt >= child.lastModified()
@@ -447,6 +528,10 @@ class ScanAndBackupWorker(
                         continue
                     }
 
+                    if (!madeRemoteDir) {
+                        try { client.mkdir(remoteDir) } catch (_: Exception) {}
+                        madeRemoteDir = true
+                    }
                     val remotePath = "$remoteDir/$childName"
                     client.upload(cacheFile, remotePath)
                     saveUploaded(repo, existing?.id, child.uri.toString(), childName, connectionId,
@@ -454,6 +539,8 @@ class ScanAndBackupWorker(
                 } catch (e: GoogleDriveClient.ReauthRequiredException) {
                     throw e
                 } catch (e: WebDavClient.AuthException) {
+                    throw e
+                } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     stats.failedFiles++
@@ -510,6 +597,16 @@ class ScanAndBackupWorker(
         /** Files can land with a modified time slightly before the scan that should catch them. */
         private const val MTIME_SLACK_MS = 2 * 60 * 1000L
         const val KEY_CURRENT = "current_folder"
+        const val KEY_PHASE = "phase"
+        const val KEY_CHECKED = "checked"
+        /** Time of the scan's last sign of life; the dashboard calls a scan stuck when it's old. */
+        const val KEY_HEARTBEAT = "heartbeat"
+        const val HEARTBEAT_MS = 15_000L
+        /** No heartbeat for this long = the scan is stuck (it reports every 15 s while alive). */
+        const val STALE_MS = 2 * 60 * 1000L
+
+        /** One scan at a time in this app. */
+        private val scanLock = Mutex()
         const val KEY_UPLOADED = "uploaded"
         const val KEY_FAILED = "failed"
         const val KEY_SUMMARY = "summary"

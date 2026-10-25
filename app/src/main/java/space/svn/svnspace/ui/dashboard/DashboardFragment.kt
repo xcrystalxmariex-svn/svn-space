@@ -14,6 +14,9 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import android.widget.Toast
 import space.svn.svnspace.data.model.Connection
 import space.svn.svnspace.data.repository.SvnRepository
 import space.svn.svnspace.databinding.FragmentDashboardBinding
@@ -62,20 +65,34 @@ class DashboardFragment : Fragment() {
             startActivity(Intent(requireContext(), AddConnectionActivity::class.java))
         }
         binding.btnScanNow.setOnClickListener {
-            BackupScheduler.scanNow(requireContext())
-            binding.txtLastScan.text = "Scan: starting…"
+            val ctx = requireContext().applicationContext
+            binding.btnScanNow.isEnabled = false
+            viewLifecycleOwner.lifecycleScope.launch {
+                val start = try {
+                    withContext(Dispatchers.IO) { BackupScheduler.scanNow(ctx) }
+                } catch (e: Exception) {
+                    _binding?.txtLastScan?.text = "Scan couldn't start: ${e.message ?: e.javaClass.simpleName}"
+                    null
+                }
+                _binding?.btnScanNow?.isEnabled = true
+                when (start) {
+                    BackupScheduler.ScanStart.ALREADY_RUNNING ->
+                        Toast.makeText(ctx, "A scan is already running", Toast.LENGTH_SHORT).show()
+                    BackupScheduler.ScanStart.RESTARTED ->
+                        Toast.makeText(ctx, "The last scan had stalled, so it was restarted", Toast.LENGTH_LONG).show()
+                    else -> {}
+                }
+                render()
+            }
         }
-        // Follow the real state of the scan instead of a fixed "queued" label.
-        // Every scan (Scan Now, scheduled, or started by new files) carries the scan tag.
+        // Follow the real state of the scan. Every scan (Scan Now, scheduled, or started by
+        // new files) carries the scan tag. The label is only ever drawn from this state, never
+        // set ahead of it, so it can't get stuck on a word nobody replaces.
         WorkManager.getInstance(requireContext())
             .getWorkInfosByTagLiveData(BackupScheduler.SCAN_TAG)
             .observe(viewLifecycleOwner) { infos ->
-                val running = infos?.firstOrNull { it.state == WorkInfo.State.RUNNING }
-                val waitingManual = infos?.firstOrNull {
-                    it.state == WorkInfo.State.ENQUEUED && it.periodicityInfo == null &&
-                        it.constraints.contentUriTriggers.isEmpty()
-                }
-                showScanState(running ?: waitingManual ?: infos?.filter { it.state.isFinished }?.lastOrNull())
+                scanInfos = infos.orEmpty()
+                render()
             }
         binding.btnFreeUp.setOnClickListener {
             space.svn.svnspace.ui.common.FreeUpSpaceDialog.show(requireContext(), viewLifecycleOwner)
@@ -109,28 +126,80 @@ class DashboardFragment : Fragment() {
         } catch (_: Exception) {
             binding.txtDeviceUsed.text = "—"
         }
-        showLastScan()
+        render()
+    }
+
+    private var scanInfos: List<WorkInfo> = emptyList()
+
+    /** Re-checks every 10 s, so "waiting" and "stuck" show up even when nothing changes. */
+    private val ticker = object : Runnable {
+        override fun run() {
+            render()
+            _binding?.root?.postDelayed(this, 10_000)
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        _binding?.root?.removeCallbacks(ticker)
+        _binding?.root?.postDelayed(ticker, 10_000)
+    }
+
+    override fun onStop() {
+        _binding?.root?.removeCallbacks(ticker)
+        super.onStop()
+    }
+
+    private fun render() {
+        val infos = scanInfos
+        val running = infos.firstOrNull { it.state == WorkInfo.State.RUNNING }
+        val waitingManual = infos.firstOrNull {
+            (it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED) &&
+                it.periodicityInfo == null && it.constraints.contentUriTriggers.isEmpty()
+        }
+        showScanState(running ?: waitingManual)
     }
 
     private fun showScanState(info: WorkInfo?) {
         val b = _binding ?: return
+        val now = System.currentTimeMillis()
         when (info?.state) {
-            WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED ->
-                b.txtLastScan.text = "Scan: waiting to start…"
-            WorkInfo.State.RUNNING -> {
-                val current = info.progress.getString(ScanAndBackupWorker.KEY_CURRENT)
-                val uploaded = info.progress.getInt(ScanAndBackupWorker.KEY_UPLOADED, 0)
-                b.txtLastScan.text = buildString {
-                    append("Scanning")
-                    if (current != null) append(" $current")
-                    append("…")
-                    if (uploaded > 0) append(" ($uploaded uploaded)")
+            WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> {
+                val prefs = requireContext().getSharedPreferences(ScanAndBackupWorker.PREFS, Context.MODE_PRIVATE)
+                val asked = prefs.getLong(BackupScheduler.KEY_SCAN_REQUESTED_AT, 0L)
+                b.txtLastScan.text = if (asked > 0 && now - asked > 90_000) {
+                    "Scan: Android hasn't started the scan yet. Battery saver or background limits " +
+                        "can hold it back. Tap Scan Now to try again."
+                } else {
+                    "Scan: waiting for Android to start it…"
                 }
             }
-            WorkInfo.State.SUCCEEDED, WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> {
-                showLastScan()
+            WorkInfo.State.RUNNING -> {
+                val p = info.progress
+                val beat = p.getLong(ScanAndBackupWorker.KEY_HEARTBEAT, 0L)
+                val phase = p.getString(ScanAndBackupWorker.KEY_PHASE)
+                val current = p.getString(ScanAndBackupWorker.KEY_CURRENT)
+                val uploaded = p.getInt(ScanAndBackupWorker.KEY_UPLOADED, 0)
+                val checked = p.getInt(ScanAndBackupWorker.KEY_CHECKED, 0)
+                if (beat > 0 && now - beat > ScanAndBackupWorker.STALE_MS) {
+                    val mins = ((now - beat) / 60_000).coerceAtLeast(1)
+                    b.txtLastScan.text = "Scan: no sign of life for $mins min – it looks stuck. Tap Scan Now to restart it."
+                    return
+                }
+                b.txtLastScan.text = buildString {
+                    when {
+                        phase == null || phase == "Starting" && current == null -> append("Scan: starting")
+                        phase == "Scanning" -> append("Scanning" + (current?.let { " $it" } ?: ""))
+                        else -> append(phase)
+                    }
+                    append("…")
+                    val parts = mutableListOf<String>()
+                    if (checked > 0) parts += "$checked checked"
+                    if (uploaded > 0) parts += "$uploaded uploaded"
+                    if (parts.isNotEmpty()) append(" (" + parts.joinToString(", ") + ")")
+                }
             }
-            null -> showLastScan()
+            else -> showLastScan()
         }
     }
 

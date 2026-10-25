@@ -4,6 +4,7 @@ import android.util.Xml
 import okhttp3.Credentials
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
@@ -68,19 +69,33 @@ class WebDavClient(
               <d:prop><d:displayname/><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getcontenttype/></d:prop>
             </d:propfind>""".trimIndent()
 
+        // Folders are always asked for with a trailing slash ("/dav/", "/dav/local/"):
+        // AList and most servers answer a collection there without a redirect.
+        val target = url(path, trailingSlash = true)
         val request = Request.Builder()
-            .url(url(path, trailingSlash = normalize(path) != "/"))
+            .url(target)
             .header("Authorization", credential)
             .header("Depth", "1")
-            .method("PROPFIND", body.toRequestBody("application/xml".toMediaType()))
+            .method("PROPFIND", body.toRequestBody("application/xml; charset=utf-8".toMediaType()))
             .build()
 
         client.newCall(request).execute().use { response ->
-            if (response.code == 401) throw AuthException("The server refused the username or password")
-            if (!response.isSuccessful) {
-                throw IOException("PROPFIND failed: ${response.code} ${response.message}")
+            val code = response.code
+            if (code == 401) {
+                throw AuthException("The server refused the username or password (401). Check them, and that this user is allowed to use WebDAV.")
             }
-            val xml = response.body?.string() ?: return emptyList()
+            if (!response.isSuccessful) {
+                val snippet = try { response.peekBody(2048).string() } catch (_: Exception) { "" }
+                throw HttpStatusException(code, explainStatus(code, response.message, target.toString(),
+                    response.header("Location")?.let { response.request.url.resolve(it)?.toString() ?: it }, snippet))
+            }
+            val xml = response.body?.string().orEmpty()
+            if (!xml.contains("multistatus", ignoreCase = true)) {
+                throw NotWebDavException(
+                    "The server at $target answered, but with a normal web page, not WebDAV. " +
+                        "Check the path – for AList it's /dav."
+                )
+            }
             return parsePropfind(xml, normalize(path))
         }
     }
@@ -143,6 +158,19 @@ class WebDavClient(
         }
     }
 
+    /** Like [mkcol], but also makes missing parent folders (servers answer 409 for those). */
+    fun mkcols(path: String) {
+        val norm = normalize(path)
+        if (norm == "/") return
+        try {
+            mkcol(norm)
+        } catch (e: IOException) {
+            if (e.message?.contains("409") != true) throw e
+            mkcols(norm.substringBeforeLast('/').ifEmpty { "/" })
+            mkcol(norm)
+        }
+    }
+
     /** Moves or renames [fromPath] to [toPath]. Refuses to overwrite something already there. */
     fun move(fromPath: String, toPath: String, isDirectory: Boolean = false) {
         val request = Request.Builder()
@@ -174,14 +202,24 @@ class WebDavClient(
     }
 
     /** Simple existence / connectivity check. */
-    fun testConnection(): Boolean {
-        return try {
-            list("/")
-            true
-        } catch (e: Exception) {
-            false
-        }
+    fun testConnection(): Boolean = probe() == null
+
+    /**
+     * Lists the top folder once. Returns null when it worked, otherwise the reason in plain
+     * words (blocked http, wrong login, wrong path, timeout, certificate trouble …).
+     */
+    fun probe(): String? = probeDetailed().error
+
+    /** Like [probe], also saying whether the server answered at all (for the http/https retry). */
+    fun probeDetailed(): ProbeResult = try {
+        list("/")
+        ProbeResult(null, gotAnswer = true)
+    } catch (e: Exception) {
+        val answered = e is HttpStatusException || e is AuthException || e is NotWebDavException
+        ProbeResult(describe(e, base), gotAnswer = answered)
     }
+
+    data class ProbeResult(val error: String?, val gotAnswer: Boolean)
 
     /** Full URL for a path, for "open in browser". */
     fun urlFor(path: String): String = url(path).toString()
@@ -237,20 +275,28 @@ class WebDavClient(
         return entries.distinctBy { it.path }
     }
 
-    /** Turns a server href (absolute URL or absolute path) into a path relative to the base URL. */
+    /**
+     * Turns a server href (absolute URL or absolute path) into a path relative to the base URL.
+     * Most servers (AList included) send hrefs with the base path ("/dav/local/a.txt"); some,
+     * behind a reverse proxy, leave part or all of it off ("/local/a.txt"). Both work.
+     */
     private fun relativePath(href: String?): String? {
         if (href.isNullOrBlank()) return null
-        val rawPath = if (href.startsWith("http://") || href.startsWith("https://")) {
-            href.toHttpUrl().encodedPath
-        } else href
-        val decoded = rawPath.split('/').filter { it.isNotEmpty() }.joinToString("/") {
+        val rawPath = if (href.startsWith("http://", true) || href.startsWith("https://", true)) {
+            href.toHttpUrlOrNull()?.encodedPath ?: return null
+        } else href.substringBefore('?')
+        val hrefSegs = rawPath.split('/').filter { it.isNotEmpty() }.map {
             try { URLDecoder.decode(it.replace("+", "%2B"), "UTF-8") } catch (e: Exception) { it }
         }
-        val full = "/$decoded"
-        val baseNorm = if (basePath == "/") "" else basePath
-        if (baseNorm.isNotEmpty() && !full.startsWith("$baseNorm/") && full != baseNorm) return null
-        val rel = full.removePrefix(baseNorm)
-        return normalize(rel)
+        val baseSegs = basePath.split('/').filter { it.isNotEmpty() }
+        // Longest tail of the base path that the href starts with (all of it, normally).
+        for (k in 0..baseSegs.size) {
+            val prefix = baseSegs.drop(k)
+            if (hrefSegs.size >= prefix.size && hrefSegs.subList(0, prefix.size) == prefix) {
+                return normalize(hrefSegs.drop(prefix.size).joinToString("/"))
+            }
+        }
+        return normalize(hrefSegs.joinToString("/"))
     }
 
     private fun parseHttpDate(s: String): Long {
@@ -265,6 +311,90 @@ class WebDavClient(
     }
 
     class AuthException(message: String) : IOException(message)
+
+    /** The server answered with an HTTP error; the message already says what it means. */
+    class HttpStatusException(val code: Int, message: String) : IOException(message)
+
+    /** The server answered 2xx, but not with a WebDAV listing (usually a web page). */
+    class NotWebDavException(message: String) : IOException(message)
+
+    /** Result of [testAddress]: the address that worked (or was tried first) and the error, if any. */
+    data class TestOutcome(val url: String, val error: String?) {
+        val ok get() = error == null
+        val scheme get() = if (url.startsWith("https://")) "https" else "http"
+    }
+
+    companion object {
+        /** A client for a saved connection: address, port and Path field combined one way everywhere. */
+        fun forConnection(conn: space.svn.svnspace.data.model.Connection, password: String): WebDavClient {
+            val host = conn.host ?: throw IOException("This connection has no server address. Remove it and add it again.")
+            return WebDavClient(WebDavAddress.endpoint(host, conn.port, conn.basePath), conn.username ?: "", password)
+        }
+
+        /**
+         * Tests what the user typed. When no http:// or https:// was typed and the first guess
+         * doesn't work, the other scheme is tried too. Throws [WebDavAddress.BadAddressException]
+         * for an address that can't be read at all.
+         */
+        fun testAddress(host: String, port: Int?, path: String?, username: String, password: String): TestOutcome {
+            val urls = WebDavAddress.candidates(host, port, path)
+            var first: Pair<String, ProbeResult>? = null
+            for (u in urls) {
+                val r = WebDavClient(u, username, password).probeDetailed()
+                if (r.error == null) return TestOutcome(u, null)
+                if (first == null) first = u to r
+                else if (r.gotAnswer && !first.second.gotAnswer) {
+                    // The second try reached a server (e.g. "wrong password"); that's the useful message.
+                    return TestOutcome(u, r.error)
+                }
+            }
+            val (u, r) = first!!
+            return TestOutcome(u, r.error)
+        }
+
+        /** Plain-words reason for a failed request. */
+        fun describe(e: Throwable, url: HttpUrl? = null): String {
+            val where = url?.let { if (it.port == defaultPort(it.scheme)) it.host else "${it.host}:${it.port}" } ?: "the server"
+            val msg = e.message.orEmpty()
+            return when {
+                e is AuthException || e is HttpStatusException || e is NotWebDavException -> msg
+                e is java.net.UnknownServiceException && msg.contains("CLEARTEXT", true) ->
+                    "Android blocked the plain http:// connection to $where."
+                e is java.net.UnknownHostException ->
+                    "Couldn't find a server called ${url?.host ?: "that"}. Check the address, and that your phone is on the same network."
+                e is java.net.ConnectException || e is java.net.NoRouteToHostException ->
+                    "Nothing answered at $where. Check the address and port, that the server is running, and that your phone is on the same network."
+                e is java.net.SocketTimeoutException || e is java.io.InterruptedIOException ->
+                    "$where didn't answer in time. Check the address and port, and that your phone can reach it."
+                e is javax.net.ssl.SSLHandshakeException && (e.cause is java.security.cert.CertificateException ||
+                    msg.contains("Trust anchor", true) || msg.contains("certificate", true)) ->
+                    "$where uses a security certificate this phone doesn't trust (self-signed?). Use http:// if the server runs plain http, or install its certificate on the phone."
+                e is javax.net.ssl.SSLException ->
+                    "The secure (https) connection to $where failed. If the server uses plain http, start the address with http://. ($msg)"
+                e is org.xmlpull.v1.XmlPullParserException ->
+                    "The server answered, but its WebDAV listing couldn't be read. ($msg)"
+                msg.isNotBlank() -> msg
+                else -> e.javaClass.simpleName
+            }
+        }
+
+        private fun defaultPort(scheme: String) = if (scheme == "https") 443 else 80
+
+        private fun explainStatus(code: Int, reason: String, url: String, location: String?, body: String): String = when {
+            code in 300..399 ->
+                "The server sent $url somewhere else ($code)" + (location?.let { ". Try this address instead: $it" } ?: ".")
+            code == 400 && body.contains("HTTPS port", true) ->
+                "That port expects https. Start the address with https://."
+            code == 400 -> "The server rejected the request (400). If it uses https, start the address with https://."
+            code == 403 ->
+                "Signed in, but this user isn't allowed to use WebDAV here (403). In AList, give the user WebDAV read and manage permission."
+            code == 404 -> "There's no WebDAV folder at $url (404). Check the path – for AList it's /dav."
+            code == 405 || code == 501 ->
+                "That address doesn't take WebDAV requests ($code). Check the path – for AList it's /dav."
+            code in 500..599 -> "The server had an error ($code). Check the server's own log."
+            else -> "The server answered with code $code."
+        }
+    }
 
     data class RemoteEntry(
         val name: String,

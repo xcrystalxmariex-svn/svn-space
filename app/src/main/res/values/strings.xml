@@ -52,9 +52,9 @@
     <string name="hint_display_name">Display name</string>
     <string name="hint_username">Username</string>
     <string name="hint_password">Password / App Password</string>
-    <string name="hint_host">Host / URL / IP</string>
+    <string name="hint_host">Server address, e.g. http://192.168.1.20:5244</string>
     <string name="hint_port">Port (optional)</string>
-    <string name="hint_path">Base path (optional)</string>
+    <string name="hint_path">Path on the server, e.g. /dav for AList (optional)</string>
 
     <string name="save_connection">Save connection</string>
     <string name="connect_oauth">Connect with provider…</string>
