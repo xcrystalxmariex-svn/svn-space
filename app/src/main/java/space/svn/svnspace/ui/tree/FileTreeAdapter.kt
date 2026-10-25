@@ -1,5 +1,6 @@
 package space.svn.svnspace.ui.tree
 
+import android.graphics.Typeface
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -8,7 +9,7 @@ import space.svn.svnspace.databinding.ItemTreeNodeBinding
 
 /**
  * Simple expandable tree adapter.
- * Nodes can be folders (expandable) or files.
+ * Nodes can be folders (expandable), files, section headers, messages or actions.
  */
 class FileTreeAdapter(
     private val onClick: (TreeNode) -> Unit,
@@ -24,8 +25,9 @@ class FileTreeAdapter(
     }
 
     fun expand(node: TreeNode, children: List<TreeNode>) {
-        val idx = visible.indexOf(node)
+        val idx = indexOfNode(node)
         if (idx < 0) return
+        if (node.isExpanded) collapse(node)
         node.isExpanded = true
         node.children = children
         visible.addAll(idx + 1, children)
@@ -34,7 +36,7 @@ class FileTreeAdapter(
     }
 
     fun collapse(node: TreeNode) {
-        val idx = visible.indexOf(node)
+        val idx = indexOfNode(node)
         if (idx < 0 || !node.isExpanded) return
         val removeCount = countDescendants(node)
         node.isExpanded = false
@@ -44,6 +46,9 @@ class FileTreeAdapter(
         }
         notifyItemChanged(idx)
     }
+
+    /** Identity lookup: two different folders can share a name and path text. */
+    private fun indexOfNode(node: TreeNode): Int = visible.indexOfFirst { it === node }
 
     private fun countDescendants(node: TreeNode): Int {
         if (!node.isExpanded || node.children.isEmpty()) return 0
@@ -66,26 +71,52 @@ class FileTreeAdapter(
     inner class VH(private val binding: ItemTreeNodeBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(node: TreeNode) {
             binding.txtName.text = node.name
-            binding.txtMeta.text = if (node.isDirectory) "Folder" else formatSize(node.size)
-            val pad = (node.depth * 24)
-            binding.root.setPadding(pad + 16, 12, 16, 12)
+            binding.txtName.setTypeface(null, if (node.kind == TreeNode.Kind.HEADER) Typeface.BOLD else Typeface.NORMAL)
+            binding.txtName.alpha = if (node.kind == TreeNode.Kind.MESSAGE) 0.7f else 1f
+            val meta = node.meta ?: when (node.kind) {
+                TreeNode.Kind.ITEM -> if (node.isDirectory) "Folder" else formatSize(node.size)
+                else -> null
+            }
+            binding.txtMeta.text = meta.orEmpty()
+            binding.txtMeta.visibility = if (meta.isNullOrBlank()) View.GONE else View.VISIBLE
+            val dp = binding.root.resources.displayMetrics.density
+            val pad = (node.depth * 20 * dp).toInt()
+            binding.root.setPadding(pad + (16 * dp).toInt(), (10 * dp).toInt(), (16 * dp).toInt(), (10 * dp).toInt())
 
-            binding.imgIcon.setImageResource(
-                if (node.isDirectory) android.R.drawable.ic_menu_agenda
-                else android.R.drawable.ic_menu_save
-            )
-            binding.imgExpand.visibility = if (node.isDirectory) View.VISIBLE else View.INVISIBLE
-            binding.imgExpand.rotation = if (node.isExpanded) 90f else 0f
+            when (node.kind) {
+                TreeNode.Kind.ITEM -> {
+                    binding.imgIcon.visibility = View.VISIBLE
+                    binding.imgIcon.setImageResource(
+                        when {
+                            node.depth == 0 && node.connectionId != null -> android.R.drawable.ic_menu_upload
+                            node.isDirectory -> android.R.drawable.ic_menu_agenda
+                            else -> android.R.drawable.ic_menu_save
+                        }
+                    )
+                    binding.imgExpand.visibility = if (node.isDirectory) View.VISIBLE else View.INVISIBLE
+                    binding.imgExpand.rotation = if (node.isExpanded) 90f else 0f
+                }
+                TreeNode.Kind.ACTION -> {
+                    binding.imgIcon.visibility = View.VISIBLE
+                    binding.imgIcon.setImageResource(android.R.drawable.ic_input_add)
+                    binding.imgExpand.visibility = View.INVISIBLE
+                }
+                TreeNode.Kind.HEADER, TreeNode.Kind.MESSAGE -> {
+                    binding.imgIcon.visibility = View.GONE
+                    binding.imgExpand.visibility = if (node.kind == TreeNode.Kind.HEADER) View.GONE else View.INVISIBLE
+                }
+            }
 
             binding.root.setOnClickListener {
-                if (node.isDirectory) {
-                    if (node.isExpanded) collapse(node) else onClick(node)
-                } else {
-                    onClick(node)
+                when (node.kind) {
+                    TreeNode.Kind.ITEM ->
+                        if (node.isDirectory && node.isExpanded) collapse(node) else onClick(node)
+                    TreeNode.Kind.ACTION -> onClick(node)
+                    else -> {}
                 }
             }
             binding.root.setOnLongClickListener {
-                onLongClick(node)
+                if (node.kind == TreeNode.Kind.ITEM) onLongClick(node)
                 true
             }
         }
@@ -93,12 +124,14 @@ class FileTreeAdapter(
         private fun formatSize(bytes: Long): String {
             if (bytes < 1024) return "$bytes B"
             if (bytes < 1024 * 1024) return "%.1f KB".format(bytes / 1024.0)
-            return "%.1f MB".format(bytes / (1024.0 * 1024))
+            if (bytes < 1024L * 1024 * 1024) return "%.1f MB".format(bytes / (1024.0 * 1024))
+            return "%.1f GB".format(bytes / (1024.0 * 1024 * 1024))
         }
     }
 }
 
-data class TreeNode(
+/** A row in the Files tree. Plain class: rows are matched by identity, not by value. */
+class TreeNode(
     val id: String,
     val name: String,
     val path: String,
@@ -107,5 +140,10 @@ data class TreeNode(
     val depth: Int = 0,
     val connectionId: String? = null,   // null = local
     var isExpanded: Boolean = false,
-    var children: List<TreeNode> = emptyList()
-)
+    var children: List<TreeNode> = emptyList(),
+    val meta: String? = null,
+    val kind: Kind = Kind.ITEM,
+    val action: String? = null
+) {
+    enum class Kind { ITEM, HEADER, MESSAGE, ACTION }
+}

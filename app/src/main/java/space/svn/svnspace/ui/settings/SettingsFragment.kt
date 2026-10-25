@@ -51,5 +51,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
             startActivity(Intent(requireContext(), WatchedFoldersActivity::class.java))
             true
         }
+
+        // Per-folder advanced settings: connection, remote folder, file types.
+        findPreference<Preference>("pref_advanced_info")?.setOnPreferenceClickListener {
+            startActivity(
+                Intent(requireContext(), WatchedFoldersActivity::class.java)
+                    .putExtra(WatchedFoldersActivity.EXTRA_OPEN_ADVANCED, true)
+            )
+            true
+        }
     }
 }

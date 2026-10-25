@@ -72,8 +72,12 @@ class LocalTreeFragment : Fragment() {
         lifecycleScope.launch {
             val children = withContext(Dispatchers.IO) {
                 val uri = Uri.parse(node.path)
-                val doc = DocumentFile.fromTreeUri(requireContext(), uri)
-                    ?: DocumentFile.fromSingleUri(requireContext(), uri)
+                val doc = if (space.svn.svnspace.util.StorageAccess.isFileUri(node.path)) {
+                    space.svn.svnspace.util.StorageAccess.rootOf(requireContext(), node.path)
+                } else {
+                    DocumentFile.fromTreeUri(requireContext(), uri)
+                        ?: DocumentFile.fromSingleUri(requireContext(), uri)
+                }
                 doc?.listFiles()?.map { child ->
                     TreeNode(
                         id = child.uri.toString(),

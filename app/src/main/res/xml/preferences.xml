@@ -6,7 +6,7 @@
         <Preference
             app:key="pref_manage_watched"
             app:title="@string/pref_manage_watched"
-            app:summary="Toggle folders from device storage to watch for new files" />
+            app:summary="Add Downloads or any folder, toggle it, tap it to set where it backs up" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/pref_category_connections">
@@ -38,7 +38,7 @@
         <Preference
             app:key="pref_advanced_info"
             app:title="Per-folder advanced settings"
-            app:summary="Assign connection + remote path + file-type filter for each watched folder (available after folders are added)" />
+            app:summary="Choose where each watched folder backs up to, the remote folder and which file types" />
     </PreferenceCategory>
 
 </PreferenceScreen>

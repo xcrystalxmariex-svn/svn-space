@@ -10,7 +10,9 @@ import space.svn.svnspace.databinding.ItemWatchedFolderBinding
 
 class WatchedFolderAdapter(
     private val onToggle: (WatchedFolder, Boolean) -> Unit,
-    private val onDelete: (WatchedFolder) -> Unit
+    private val onDelete: (WatchedFolder) -> Unit,
+    private val onOpen: (WatchedFolder) -> Unit,
+    private val describe: (WatchedFolder) -> String
 ) : ListAdapter<WatchedFolder, WatchedFolderAdapter.VH>(DIFF) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -25,11 +27,15 @@ class WatchedFolderAdapter(
     inner class VH(private val binding: ItemWatchedFolderBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: WatchedFolder) {
             binding.txtPath.text = item.displayPath
+            binding.txtSummary.text = describe(item)
+            // Clear the old listener first, or a recycled row fires it for the wrong folder.
+            binding.switchEnabled.setOnCheckedChangeListener(null)
             binding.switchEnabled.isChecked = item.isEnabled
             binding.switchEnabled.setOnCheckedChangeListener { _, checked ->
                 onToggle(item, checked)
             }
             binding.btnDelete.setOnClickListener { onDelete(item) }
+            binding.root.setOnClickListener { onOpen(item) }
         }
     }
 

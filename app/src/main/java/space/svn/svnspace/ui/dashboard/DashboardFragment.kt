@@ -23,8 +23,10 @@ import space.svn.svnspace.ui.settings.SettingsActivity
 import space.svn.svnspace.worker.BackupScheduler
 import space.svn.svnspace.worker.FreeUpSpaceWorker
 import space.svn.svnspace.worker.ScanAndBackupWorker
-import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import android.content.Context
+import android.text.format.DateUtils
 import java.util.Locale
 
 /**
@@ -56,10 +58,13 @@ class DashboardFragment : Fragment() {
             startActivity(Intent(requireContext(), AddConnectionActivity::class.java))
         }
         binding.btnScanNow.setOnClickListener {
-            val req = OneTimeWorkRequestBuilder<ScanAndBackupWorker>().build()
-            WorkManager.getInstance(requireContext()).enqueue(req)
-            binding.txtLastScan.text = "Last scan: just now (queued)"
+            BackupScheduler.scanNow(requireContext())
+            binding.txtLastScan.text = "Scan: starting…"
         }
+        // Follow the real state of the scan instead of a fixed "queued" label.
+        WorkManager.getInstance(requireContext())
+            .getWorkInfosForUniqueWorkLiveData(BackupScheduler.SCAN_NOW_WORK)
+            .observe(viewLifecycleOwner) { infos -> showScanState(infos?.lastOrNull()) }
         binding.btnFreeUp.setOnClickListener {
             AlertDialog.Builder(requireContext())
                 .setTitle(space.svn.svnspace.R.string.free_up_space_confirm_title)
@@ -96,7 +101,48 @@ class DashboardFragment : Fragment() {
         } catch (_: Exception) {
             binding.txtDeviceUsed.text = "—"
         }
-        binding.txtLastScan.text = "Last scan: —"
+        showLastScan()
+    }
+
+    private fun showScanState(info: WorkInfo?) {
+        val b = _binding ?: return
+        when (info?.state) {
+            WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED ->
+                b.txtLastScan.text = "Scan: waiting to start…"
+            WorkInfo.State.RUNNING -> {
+                val current = info.progress.getString(ScanAndBackupWorker.KEY_CURRENT)
+                val uploaded = info.progress.getInt(ScanAndBackupWorker.KEY_UPLOADED, 0)
+                b.txtLastScan.text = buildString {
+                    append("Scanning")
+                    if (current != null) append(" $current")
+                    append("…")
+                    if (uploaded > 0) append(" ($uploaded uploaded)")
+                }
+            }
+            WorkInfo.State.SUCCEEDED, WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> {
+                showLastScan()
+                lifecycleScope.launch {
+                    val count = repo.countVerified()
+                    _binding?.txtBackedUp?.text = if (count > 0) "$count files" else "—"
+                }
+            }
+            null -> showLastScan()
+        }
+    }
+
+    private fun showLastScan() {
+        val b = _binding ?: return
+        val prefs = requireContext().getSharedPreferences(ScanAndBackupWorker.PREFS, Context.MODE_PRIVATE)
+        val at = prefs.getLong(ScanAndBackupWorker.KEY_LAST_AT, 0L)
+        val summary = prefs.getString(ScanAndBackupWorker.KEY_LAST_SUMMARY, null)
+        b.txtLastScan.text = if (at == 0L) {
+            "Last scan: —"
+        } else {
+            val whenText = DateUtils.getRelativeTimeSpanString(
+                at, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS
+            )
+            "Last scan: $whenText" + (summary?.let { "\n$it" } ?: "")
+        }
     }
 
     private fun formatBytes(bytes: Long): String {

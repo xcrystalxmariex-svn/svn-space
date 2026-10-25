@@ -1,7 +1,6 @@
 package space.svn.svnspace.worker
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import androidx.work.CoroutineWorker
@@ -35,9 +34,12 @@ class FreeUpSpaceWorker(
 
             for (record in records) {
                 try {
-                    val uri = Uri.parse(record.localUri)
-                    val doc = DocumentFile.fromSingleUri(appContext, uri)
-                        ?: DocumentFile.fromTreeUri(appContext, uri)
+                    // Handles both picker (content://) files and Downloads (file://) files.
+                    // Without All files access a Downloads file just looks missing; leave it.
+                    if (space.svn.svnspace.util.StorageAccess.isFileUri(record.localUri) &&
+                        !space.svn.svnspace.util.StorageAccess.hasAllFilesAccess(appContext)
+                    ) continue
+                    val doc = space.svn.svnspace.util.StorageAccess.singleDocument(appContext, record.localUri)
 
                     if (doc != null && doc.exists() && doc.isFile) {
                         val size = doc.length()
