@@ -46,22 +46,14 @@
             </intent-filter>
         </activity>
 
-        <!-- OAuth redirect receiver activity -->
+        <!-- OAuth result screen. AppAuth's own RedirectUriReceiverActivity catches the
+             Google redirect (scheme from manifestPlaceholders["appAuthRedirectScheme"])
+             and forwards the result here, so this activity needs no intent filter. -->
         <activity
             android:name=".ui.connections.OAuthRedirectActivity"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleTask"
-            android:theme="@style/Theme.SvnSpace.Transparent">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Google reverse-client-id redirect (installed client) -->
-                <data
-                    android:scheme="com.googleusercontent.apps.606145683240-9admvfv6f4vuchepn0fidbhuk95phufn"
-                    android:path="/oauth2redirect" />
-            </intent-filter>
-        </activity>
+            android:theme="@style/Theme.SvnSpace.Transparent" />
 
         <activity
             android:name=".ui.settings.SettingsActivity"

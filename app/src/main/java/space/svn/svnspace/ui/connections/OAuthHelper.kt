@@ -1,6 +1,9 @@
 package space.svn.svnspace.ui.connections
 
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.net.Uri
 import net.openid.appauth.AuthorizationRequest
 import net.openid.appauth.AuthorizationService
@@ -8,16 +11,15 @@ import net.openid.appauth.AuthorizationServiceConfiguration
 import net.openid.appauth.ResponseTypeValues
 
 /**
- * Google installed client uses the reverse-client-id redirect form:
+ * Google: Android OAuth client in Google Cloud project "svn-space", with
+ * "Enable custom URI scheme" turned on (Advanced settings), so it accepts the
+ * reverse-client-id redirect:
  *   com.googleusercontent.apps.{CLIENT_ID_PREFIX}:/oauth2redirect
- *
- * That is what Google Console registers for native/Desktop/Installed clients
- * when custom package URIs are not the path you configured.
+ * Public client: PKCE, no client secret. The same scheme is set in
+ * app/build.gradle.kts as manifestPlaceholders["appAuthRedirectScheme"].
  *
  * Client ID:
  *   606145683240-9admvfv6f4vuchepn0fidbhuk95phufn.apps.googleusercontent.com
- * Prefix (before .apps.googleusercontent.com):
- *   606145683240-9admvfv6f4vuchepn0fidbhuk95phufn
  */
 object OAuthHelper {
 
@@ -39,6 +41,20 @@ object OAuthHelper {
     const val MICROSOFT_CLIENT_ID = "YOUR_MICROSOFT_CLIENT_ID"
     const val DROPBOX_CLIENT_ID = "YOUR_DROPBOX_APP_KEY"
 
+    /** Google Drive scopes. drive.file / drive.appdata are non-sensitive, so no Google verification is needed. */
+    val GOOGLE_SCOPES = listOf(
+        "openid",
+        "email",
+        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/drive.appdata"
+    )
+
+    /**
+     * Starts Google sign-in in a Custom Tab. When Google redirects back, AppAuth's own
+     * RedirectUriReceiverActivity catches the reverse-client-id redirect and hands the
+     * result to OAuthRedirectActivity through the completion PendingIntent below.
+     * Each run can pick a different Google account, so every account becomes its own connection.
+     */
     fun launchGoogle(context: Context) {
         val config = AuthorizationServiceConfiguration(
             Uri.parse("https://accounts.google.com/o/oauth2/v2/auth"),
@@ -50,15 +66,29 @@ object OAuthHelper {
             ResponseTypeValues.CODE,
             REDIRECT
         )
-            .setScopes(
-                "https://www.googleapis.com/auth/drive.file",
-                "https://www.googleapis.com/auth/drive.appdata"
-            )
-            .setPrompt("consent")
+            .setScopes(GOOGLE_SCOPES)
+            // Always show the account chooser (many Google accounts) and the consent
+            // screen, so Google returns a refresh token every time.
+            .setPromptValues("select_account", "consent")
             .build()
 
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or
+            (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+        val complete = PendingIntent.getActivity(
+            context, 1001,
+            Intent(context, OAuthRedirectActivity::class.java)
+                .putExtra(OAuthRedirectActivity.EXTRA_PROVIDER, "google"),
+            flags
+        )
+        val cancel = PendingIntent.getActivity(
+            context, 1002,
+            Intent(context, OAuthRedirectActivity::class.java)
+                .putExtra(OAuthRedirectActivity.EXTRA_PROVIDER, "google")
+                .putExtra(OAuthRedirectActivity.EXTRA_CANCELLED, true),
+            flags
+        )
         val service = AuthorizationService(context)
-        context.startActivity(service.getAuthorizationRequestIntent(request))
+        service.performAuthorizationRequest(request, complete, cancel)
     }
 
     fun launchMicrosoft(context: Context) {

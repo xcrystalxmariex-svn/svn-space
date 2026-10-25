@@ -13,7 +13,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import space.svn.svnspace.data.model.ConnectionType
+import space.svn.svnspace.data.remote.GoogleDriveClient
 import space.svn.svnspace.data.remote.WebDavClient
+import space.svn.svnspace.ui.connections.OAuthHelper
 import space.svn.svnspace.data.repository.SvnRepository
 import space.svn.svnspace.databinding.FragmentTreeBinding
 
@@ -85,6 +87,20 @@ class CloudTreeFragment : Fragment() {
                                     name = entry.name,
                                     path = entry.path,
                                     isDirectory = entry.isDirectory,
+                                    depth = node.depth + 1,
+                                    connectionId = connId
+                                )
+                            }
+                        }
+                        ConnectionType.OAUTH_GOOGLE -> {
+                            val drive = GoogleDriveClient(OAuthHelper.GOOGLE_CLIENT_ID, secret)
+                            drive.list(node.path).map { entry ->
+                                TreeNode(
+                                    id = entry.id,
+                                    name = entry.name,
+                                    path = entry.path,
+                                    isDirectory = entry.isDirectory,
+                                    size = entry.size,
                                     depth = node.depth + 1,
                                     connectionId = connId
                                 )

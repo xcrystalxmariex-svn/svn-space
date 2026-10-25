@@ -11,7 +11,9 @@ import kotlinx.coroutines.withContext
 import space.svn.svnspace.data.model.BackupRecord
 import space.svn.svnspace.data.model.ConnectionType
 import space.svn.svnspace.data.model.FileFilter
+import space.svn.svnspace.data.remote.GoogleDriveClient
 import space.svn.svnspace.data.remote.WebDavClient
+import space.svn.svnspace.ui.connections.OAuthHelper
 import space.svn.svnspace.data.repository.SvnRepository
 import java.io.File
 import java.io.FileOutputStream
@@ -21,7 +23,7 @@ import java.util.UUID
 /**
  * Scans enabled watched folders, applies filters, uploads via the assigned connection,
  * and records verified BackupRecords on success.
- * Currently implements the WebDAV path fully. OAuth providers are extension points.
+ * Implements WebDAV and Google Drive. OneDrive / Dropbox are still extension points.
  */
 class ScanAndBackupWorker(
     private val appContext: Context,
@@ -46,6 +48,13 @@ class ScanAndBackupWorker(
                     ConnectionType.WEBDAV, ConnectionType.CUSTOM_HTTP -> {
                         processWebDavFolder(repo, folder, conn, secret)
                     }
+                    ConnectionType.OAUTH_GOOGLE -> {
+                        try {
+                            processDriveFolder(repo, folder, conn, secret)
+                        } catch (e: GoogleDriveClient.ReauthRequiredException) {
+                            Log.w(TAG, "Drive login for ${conn.displayName} needs reconnecting: ${e.message}")
+                        }
+                    }
                     else -> {
                         Log.i(TAG, "Provider ${conn.type} not yet implemented in worker – skip")
                     }
@@ -56,6 +65,32 @@ class ScanAndBackupWorker(
             Log.e(TAG, "ScanAndBackupWorker failed", e)
             Result.retry()
         }
+    }
+
+    /** Upload target used by the folder walk, so WebDAV and Drive share one code path. */
+    private interface RemoteTarget {
+        fun mkdir(path: String)
+        fun upload(file: File, path: String)
+    }
+
+    private suspend fun processDriveFolder(
+        repo: SvnRepository,
+        folder: space.svn.svnspace.data.model.WatchedFolder,
+        conn: space.svn.svnspace.data.model.Connection,
+        refreshToken: String
+    ) {
+        val drive = GoogleDriveClient(OAuthHelper.GOOGLE_CLIENT_ID, refreshToken)
+        val treeUri = Uri.parse(folder.localUri)
+        val root = DocumentFile.fromTreeUri(appContext, treeUri) ?: return
+        val folderName = root.name ?: "Backup"
+        val remoteBase = (folder.remotePath?.takeIf { it.isNotBlank() && it != "/" }
+            ?: "${conn.basePath ?: GoogleDriveClient.DEFAULT_ROOT}/$folderName").trimEnd('/')
+        drive.ensureFolder(remoteBase)
+        val target = object : RemoteTarget {
+            override fun mkdir(path: String) { drive.ensureFolder(path) }
+            override fun upload(file: File, path: String) { drive.upload(file, path) }
+        }
+        walkAndUpload(repo, root, target, remoteBase, folder, conn.id)
     }
 
     private suspend fun processWebDavFolder(
@@ -81,13 +116,17 @@ class ScanAndBackupWorker(
             client.mkcol(remoteBase)
         } catch (_: Exception) { /* may already exist */ }
 
-        walkAndUpload(repo, root, client, remoteBase, folder, conn.id)
+        val target = object : RemoteTarget {
+            override fun mkdir(path: String) { client.mkcol(path) }
+            override fun upload(file: File, path: String) { client.upload(file, path) }
+        }
+        walkAndUpload(repo, root, target, remoteBase, folder, conn.id)
     }
 
     private suspend fun walkAndUpload(
         repo: SvnRepository,
         dir: DocumentFile,
-        client: WebDavClient,
+        client: RemoteTarget,
         remoteDir: String,
         folder: space.svn.svnspace.data.model.WatchedFolder,
         connectionId: String
@@ -96,7 +135,7 @@ class ScanAndBackupWorker(
         for (child in children) {
             if (child.isDirectory) {
                 val subRemote = "$remoteDir/${child.name}"
-                try { client.mkcol(subRemote) } catch (_: Exception) {}
+                try { client.mkdir(subRemote) } catch (_: Exception) {}
                 walkAndUpload(repo, child, client, subRemote, folder, connectionId)
             } else if (child.isFile && matchesFilter(child, folder)) {
                 val existing = repo.findRecordByUri(child.uri.toString())
@@ -124,6 +163,8 @@ class ScanAndBackupWorker(
                     )
                     repo.saveRecord(record)
                     Log.i(TAG, "Backed up: ${child.name} → $remotePath")
+                } catch (e: GoogleDriveClient.ReauthRequiredException) {
+                    throw e
                 } catch (e: Exception) {
                     Log.e(TAG, "Upload failed for ${child.name}", e)
                 } finally {
