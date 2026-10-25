@@ -11,6 +11,10 @@
 
     <PreferenceCategory app:title="@string/pref_category_connections">
         <Preference
+            app:key="pref_cloud_accounts"
+            app:title="Cloud accounts"
+            app:summary="Turn providers on or off, connect Google Drive, add a custom provider" />
+        <Preference
             app:key="pref_add_connection"
             app:title="@string/pref_add_connection"
             app:summary="OAuth providers or username/password remote (WebDAV, SFTP, etc.)" />
@@ -18,10 +22,10 @@
 
     <PreferenceCategory app:title="@string/pref_category_scan">
         <ListPreference
-            app:key="pref_scan_interval"
+            app:key="pref_scan_interval_min"
             app:title="@string/pref_scan_interval"
-            app:summary="How often watched folders are scanned"
-            app:defaultValue="1"
+            app:useSimpleSummaryProvider="true"
+            app:defaultValue="60"
             app:entries="@array/scan_interval_labels"
             app:entryValues="@array/scan_interval_values" />
     </PreferenceCategory>

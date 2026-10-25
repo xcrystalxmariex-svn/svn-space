@@ -16,6 +16,17 @@ object BackupScheduler {
 
     private const val UNIQUE_WORK = "svn_space_periodic_scan"
     const val SCAN_NOW_WORK = "svn_space_scan_now"
+    const val PREF_INTERVAL = "pref_scan_interval_min"
+
+    val INTERVAL_MINUTES = longArrayOf(15, 30, 60, 120, 360, 720, 1440)
+    val INTERVAL_LABELS = arrayOf("Every 15 minutes", "Every 30 minutes", "Every hour", "Every 2 hours", "Every 6 hours", "Every 12 hours", "Every 24 hours")
+
+    fun intervalMinutes(context: Context): Long =
+        androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+            .getString(PREF_INTERVAL, "60")?.toLongOrNull() ?: 60L
+
+    fun intervalLabel(minutes: Long): String =
+        INTERVAL_LABELS.getOrNull(INTERVAL_MINUTES.indexOf(minutes)) ?: "Every $minutes minutes"
 
     private fun periodicConstraints() = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -25,7 +36,7 @@ object BackupScheduler {
     fun ensurePeriodicWork(context: Context) {
         // Default interval: 1 hour. User can change this in settings later.
         val request = PeriodicWorkRequestBuilder<ScanAndBackupWorker>(
-            1, TimeUnit.HOURS
+            intervalMinutes(context).coerceAtLeast(15), TimeUnit.MINUTES
         )
             .setConstraints(periodicConstraints())
             .addTag("scan")
@@ -38,9 +49,12 @@ object BackupScheduler {
         )
     }
 
-    fun updateInterval(context: Context, hours: Long) {
+    /** Interval in minutes (WorkManager's minimum is 15). */
+    fun updateInterval(context: Context, minutes: Long) {
+        androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).edit()
+            .putString(PREF_INTERVAL, minutes.toString()).apply()
         val request = PeriodicWorkRequestBuilder<ScanAndBackupWorker>(
-            hours, TimeUnit.HOURS
+            minutes.coerceAtLeast(15), TimeUnit.MINUTES
         )
             .setConstraints(periodicConstraints())
             .addTag("scan")

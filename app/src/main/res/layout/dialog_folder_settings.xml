@@ -23,7 +23,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Back up to"
+            android:text="Assign provider"
             android:textStyle="bold"
             android:textColor="?attr/colorOnSurface" />
 
@@ -47,7 +47,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:hint="Remote folder (blank = automatic)">
+            android:hint="Cloud destination path (blank = automatic)">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/edit_remote_path"
                 android:layout_width="match_parent"
@@ -59,7 +59,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="File types"
+            android:text="File type filter"
             android:textStyle="bold"
             android:textColor="?attr/colorOnSurface" />
 
@@ -81,6 +81,28 @@
                 android:layout_height="wrap_content"
                 android:inputType="text" />
         </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Sync interval"
+            android:textStyle="bold"
+            android:textColor="?attr/colorOnSurface" />
+
+        <Spinner
+            android:id="@+id/spinner_interval"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switch_low_battery"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:text="Pause when battery is low"
+            android:textColor="?attr/colorOnSurface" />
 
     </LinearLayout>
 </ScrollView>

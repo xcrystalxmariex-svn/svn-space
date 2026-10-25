@@ -26,6 +26,7 @@ import space.svn.svnspace.databinding.ActivityWatchedFoldersBinding
 import space.svn.svnspace.databinding.DialogFolderSettingsBinding
 import space.svn.svnspace.ui.connections.AddConnectionActivity
 import space.svn.svnspace.util.StorageAccess
+import space.svn.svnspace.worker.BackupScheduler
 import space.svn.svnspace.util.ThemeManager
 import java.util.UUID
 
@@ -44,7 +45,7 @@ class WatchedFoldersActivity : AppCompatActivity() {
 
     private var folders: List<WatchedFolder> = emptyList()
     private var connections: List<Connection> = emptyList()
-    private var pendingDownloadsAdd = false
+    private var pendingAdd: Pair<String, String>? = null
     private var advancedHandled = false
 
     private val folderPicker = registerForActivityResult(
@@ -86,8 +87,12 @@ class WatchedFoldersActivity : AppCompatActivity() {
         binding = ActivityWatchedFoldersBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        setSupportActionBar(findViewById(space.svn.svnspace.R.id.toolbar))
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.title = "Watched Folders"
+        supportActionBar?.title = "Watch Folders"
+
+        binding.txtInterval.text = BackupScheduler.intervalLabel(BackupScheduler.intervalMinutes(this))
+        binding.cardInterval.setOnClickListener { chooseInterval() }
 
         repo = SvnRepository(this)
         advancedHandled = savedInstanceState?.getBoolean(STATE_ADVANCED_HANDLED) ?: false
@@ -114,6 +119,7 @@ class WatchedFoldersActivity : AppCompatActivity() {
             repo.observeWatchedFolders().collect { list ->
                 folders = list
                 adapter.submitList(list)
+                binding.txtEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
                 maybeOpenAdvanced()
             }
         }
@@ -158,11 +164,28 @@ class WatchedFoldersActivity : AppCompatActivity() {
 
     // ── Adding folders ───────────────────────────────────────────────────────
 
-    private fun showAddChoices() {
+    private fun chooseInterval() {
+        val current = BackupScheduler.INTERVAL_MINUTES.indexOf(BackupScheduler.intervalMinutes(this))
         AlertDialog.Builder(this)
-            .setTitle("Add a watched folder")
-            .setItems(arrayOf("Downloads", "Choose another folder…")) { _, which ->
-                if (which == 0) addDownloads() else folderPicker.launch(null)
+            .setTitle("Scan interval")
+            .setSingleChoiceItems(BackupScheduler.INTERVAL_LABELS, current) { dialog, which ->
+                val minutes = BackupScheduler.INTERVAL_MINUTES[which]
+                BackupScheduler.updateInterval(this, minutes)
+                binding.txtInterval.text = BackupScheduler.intervalLabel(minutes)
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showAddChoices() {
+        val common = StorageAccess.COMMON_FOLDERS
+        val labels = common.map { it.first }.toTypedArray() + "Choose another folder\u2026"
+        AlertDialog.Builder(this)
+            .setTitle("Add Folder")
+            .setItems(labels) { _, which ->
+                if (which < common.size) addCommonFolder(common[which].first, common[which].second)
+                else folderPicker.launch(null)
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -172,23 +195,23 @@ class WatchedFoldersActivity : AppCompatActivity() {
      * Android 11+ won't let the system folder picker hand out the Downloads root, so
      * Downloads is watched as a plain path with All files access instead.
      */
-    private fun addDownloads() {
-        val uri = StorageAccess.downloadsUri()
+    private fun addCommonFolder(label: String, dirType: String) {
+        val uri = StorageAccess.publicDirUri(dirType)
         if (folders.any { it.localUri == uri }) {
-            Toast.makeText(this, "Downloads is already watched", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "$label is already watched", Toast.LENGTH_SHORT).show()
             return
         }
         if (StorageAccess.hasAllFilesAccess(this)) {
-            addFolder(uri, "Downloads")
+            addFolder(uri, label)
             return
         }
-        pendingDownloadsAdd = true
+        pendingAdd = label to dirType
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             AlertDialog.Builder(this)
-                .setTitle("Allow access to Downloads")
-                .setMessage("Android only lets backup apps read the Downloads folder with \"All files access\". On the next screen, turn on \"Allow access to manage all files\" for svn-space, then come back.")
+                .setTitle("Allow access to $label")
+                .setMessage("Android only lets backup apps read folders like Downloads, DCIM and Music with \"All files access\". On the next screen, turn on \"Allow access to manage all files\" for svn-space, then come back.")
                 .setPositiveButton("Open settings") { _, _ -> openAllFilesAccessScreen() }
-                .setNegativeButton(android.R.string.cancel) { _, _ -> pendingDownloadsAdd = false }
+                .setNegativeButton(android.R.string.cancel) { _, _ -> pendingAdd = null }
                 .show()
         } else {
             legacyStoragePermission.launch(
@@ -212,23 +235,22 @@ class WatchedFoldersActivity : AppCompatActivity() {
             try {
                 allFilesAccessScreen.launch(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
             } catch (e2: Exception) {
-                pendingDownloadsAdd = false
+                pendingAdd = null
                 Toast.makeText(this, "Open Settings → Apps → svn-space → All files access", Toast.LENGTH_LONG).show()
             }
         }
     }
 
     private fun finishDownloadsAdd() {
-        val wanted = pendingDownloadsAdd
-        pendingDownloadsAdd = false
+        val wanted = pendingAdd
+        pendingAdd = null
         adapter.notifyDataSetChanged()
+        if (wanted == null) return
         if (StorageAccess.hasAllFilesAccess(this)) {
-            if (wanted) {
-                val uri = StorageAccess.downloadsUri()
-                if (folders.none { it.localUri == uri }) addFolder(uri, "Downloads")
-            }
-        } else if (wanted) {
-            Toast.makeText(this, "Downloads needs All files access to be watched", Toast.LENGTH_LONG).show()
+            val uri = StorageAccess.publicDirUri(wanted.second)
+            if (folders.none { it.localUri == uri }) addFolder(uri, wanted.first)
+        } else {
+            Toast.makeText(this, "${wanted.first} needs All files access to be watched", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -278,7 +300,7 @@ class WatchedFoldersActivity : AppCompatActivity() {
 
     private fun onFolderTapped(folder: WatchedFolder) {
         if (StorageAccess.isFileUri(folder.localUri) && !StorageAccess.hasAllFilesAccess(this)) {
-            pendingDownloadsAdd = false
+            pendingAdd = null
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 openAllFilesAccessScreen()
             } else {
@@ -352,8 +374,18 @@ class WatchedFoldersActivity : AppCompatActivity() {
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
+        val intervalOptions = longArrayOf(0) + BackupScheduler.INTERVAL_MINUTES
+        val intervalLabels = listOf("Every scheduled scan") + BackupScheduler.INTERVAL_LABELS.toList()
+        b.spinnerInterval.adapter = ArrayAdapter(
+            this, android.R.layout.simple_spinner_dropdown_item, intervalLabels
+        )
+        b.spinnerInterval.setSelection(
+            intervalOptions.indexOf(StorageAccess.folderIntervalMinutes(this, folder.id)).coerceAtLeast(0)
+        )
+        b.switchLowBattery.isChecked = StorageAccess.pauseOnLowBattery(this, folder.id)
+
         val builder = AlertDialog.Builder(this)
-            .setTitle(folder.displayPath)
+            .setTitle("Advanced Settings \u00b7 ${folder.displayPath}")
             .setView(b.root)
             .setPositiveButton("Save") { _, _ ->
                 val conn = if (conns.isEmpty()) null else conns.getOrNull(b.spinnerConnection.selectedItemPosition)
@@ -369,6 +401,12 @@ class WatchedFoldersActivity : AppCompatActivity() {
                     remotePath = remote.ifBlank { null },
                     fileFilter = if (filter == FileFilter.CUSTOM && exts.isEmpty()) FileFilter.ANY else filter,
                     customExtensions = exts
+                )
+                StorageAccess.saveFolderOptions(
+                    this,
+                    folder.id,
+                    intervalOptions.getOrElse(b.spinnerInterval.selectedItemPosition) { 0L },
+                    b.switchLowBattery.isChecked
                 )
                 lifecycleScope.launch {
                     repo.saveWatchedFolder(updated)

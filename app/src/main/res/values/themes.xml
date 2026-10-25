@@ -69,6 +69,12 @@
         <item name="android:windowLightStatusBar">true</item>
     </style>
 
+    <style name="Theme.SvnSpace.Splash" parent="Theme.SvnSpace">
+        <item name="android:windowBackground">@drawable/bg_splash</item>
+        <item name="android:statusBarColor">#FF03040F</item>
+        <item name="android:navigationBarColor">#FF03040F</item>
+    </style>
+
     <style name="Theme.SvnSpace.Transparent" parent="Theme.SvnSpace">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>

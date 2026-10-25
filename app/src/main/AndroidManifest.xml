@@ -36,14 +36,20 @@
         tools:targetApi="35">
 
         <activity
-            android:name=".ui.main.MainActivity"
+            android:name=".ui.main.SplashActivity"
             android:exported="true"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.SvnSpace">
+            android:theme="@style/Theme.SvnSpace.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.main.MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.SvnSpace">
         </activity>
 
         <!-- OAuth result screen. AppAuth's own RedirectUriReceiverActivity catches the
@@ -60,6 +66,10 @@
             android:exported="false"
             android:parentActivityName=".ui.main.MainActivity"
             android:label="@string/settings_title" />
+
+        <activity
+            android:name=".ui.connections.ProvidersActivity"
+            android:exported="false" />
 
         <activity
             android:name=".ui.connections.AddConnectionActivity"

@@ -19,6 +19,7 @@ import space.svn.svnspace.data.repository.SvnRepository
 import space.svn.svnspace.databinding.FragmentDashboardBinding
 import space.svn.svnspace.databinding.ItemProviderRowBinding
 import space.svn.svnspace.ui.connections.AddConnectionActivity
+import space.svn.svnspace.ui.connections.ProvidersActivity
 import space.svn.svnspace.ui.settings.SettingsActivity
 import space.svn.svnspace.worker.BackupScheduler
 import space.svn.svnspace.worker.FreeUpSpaceWorker
@@ -53,6 +54,9 @@ class DashboardFragment : Fragment() {
 
         binding.btnSettingsQuick.setOnClickListener {
             startActivity(Intent(requireContext(), SettingsActivity::class.java))
+        }
+        binding.txtSeeAll.setOnClickListener {
+            startActivity(Intent(requireContext(), ProvidersActivity::class.java))
         }
         binding.btnAddProvider.setOnClickListener {
             startActivity(Intent(requireContext(), AddConnectionActivity::class.java))

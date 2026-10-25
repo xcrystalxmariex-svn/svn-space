@@ -35,9 +35,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
 
         // Scan interval
-        findPreference<ListPreference>("pref_scan_interval")?.setOnPreferenceChangeListener { _, newValue ->
-            val hours = (newValue as String).toLongOrNull() ?: 1L
-            BackupScheduler.updateInterval(requireContext(), hours)
+        findPreference<ListPreference>(BackupScheduler.PREF_INTERVAL)?.setOnPreferenceChangeListener { _, newValue ->
+            val minutes = (newValue as String).toLongOrNull() ?: 60L
+            BackupScheduler.updateInterval(requireContext(), minutes)
             true
         }
 
@@ -49,6 +49,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         findPreference<Preference>("pref_manage_watched")?.setOnPreferenceClickListener {
             startActivity(Intent(requireContext(), WatchedFoldersActivity::class.java))
+            true
+        }
+
+        findPreference<Preference>("pref_cloud_accounts")?.setOnPreferenceClickListener {
+            startActivity(Intent(requireContext(), space.svn.svnspace.ui.connections.ProvidersActivity::class.java))
             true
         }
 

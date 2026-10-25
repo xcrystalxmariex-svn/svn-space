@@ -28,6 +28,19 @@ object StorageAccess {
     fun fileOf(uriString: String): File =
         if (uriString.startsWith("/")) File(uriString) else File(Uri.parse(uriString).path ?: uriString)
 
+    /** Folders offered under Add Folder: label to Environment.DIRECTORY_* name. */
+    val COMMON_FOLDERS: List<Pair<String, String>> = listOf(
+        "Downloads" to Environment.DIRECTORY_DOWNLOADS,
+        "DCIM (camera)" to Environment.DIRECTORY_DCIM,
+        "Pictures" to Environment.DIRECTORY_PICTURES,
+        "Movies" to Environment.DIRECTORY_MOVIES,
+        "Music" to Environment.DIRECTORY_MUSIC,
+        "Documents" to Environment.DIRECTORY_DOCUMENTS
+    )
+
+    fun publicDirUri(dirType: String): String =
+        Uri.fromFile(Environment.getExternalStoragePublicDirectory(dirType)).toString()
+
     fun downloadsDir(): File =
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
 
@@ -80,5 +93,29 @@ object StorageAccess {
             it.uri == uri && it.isReadPermission
         }
         return if (granted) null else "Access lost – remove and add this folder again"
+    }
+
+    // ── Per-folder extras (kept outside the database, no migration needed) ──
+
+    private const val FOLDER_PREFS = "folder_options"
+
+    /** Minutes between scans for one folder; 0 = every scheduled scan. */
+    fun folderIntervalMinutes(context: Context, folderId: String): Long =
+        context.getSharedPreferences(FOLDER_PREFS, Context.MODE_PRIVATE).getLong("${folderId}_interval", 0L)
+
+    fun pauseOnLowBattery(context: Context, folderId: String): Boolean =
+        context.getSharedPreferences(FOLDER_PREFS, Context.MODE_PRIVATE).getBoolean("${folderId}_low_battery", true)
+
+    fun saveFolderOptions(context: Context, folderId: String, intervalMinutes: Long, pauseLowBattery: Boolean) {
+        context.getSharedPreferences(FOLDER_PREFS, Context.MODE_PRIVATE).edit()
+            .putLong("${folderId}_interval", intervalMinutes)
+            .putBoolean("${folderId}_low_battery", pauseLowBattery)
+            .apply()
+    }
+
+    fun isBatteryLow(context: Context): Boolean {
+        val bm = context.getSystemService(android.os.BatteryManager::class.java) ?: return false
+        val level = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        return level in 0..15 && !bm.isCharging
     }
 }

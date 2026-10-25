@@ -101,6 +101,13 @@ class ScanAndBackupWorker(
 
             for (original in folders) {
                 var folder = original
+                // Per-folder advanced options apply to scheduled scans; Scan Now always runs.
+                if (!manual) {
+                    val every = StorageAccess.folderIntervalMinutes(appContext, folder.id)
+                    val last = folder.lastScanAt ?: 0L
+                    if (every > 0 && System.currentTimeMillis() - last < every * 60_000L - 60_000L) continue
+                    if (StorageAccess.pauseOnLowBattery(appContext, folder.id) && StorageAccess.isBatteryLow(appContext)) continue
+                }
                 setProgress(workDataOf(KEY_CURRENT to folder.displayPath, KEY_UPLOADED to stats.uploaded))
 
                 // Folders added before per-folder settings worked have no destination.
