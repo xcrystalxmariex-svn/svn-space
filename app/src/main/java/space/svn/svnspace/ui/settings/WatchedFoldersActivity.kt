@@ -345,15 +345,21 @@ class WatchedFoldersActivity : ThemedActivity() {
         } else folder.displayPath
 
         val conns = connections
+        // With several accounts and none chosen yet, start on a "choose" entry so saving
+        // the dialog never quietly picks the first account for this folder.
+        val needsChoice = conns.size > 1 && conns.none { it.id == folder.connectionId }
+        val offset = if (needsChoice) 1 else 0
         if (conns.isEmpty()) {
             b.spinnerConnection.visibility = View.GONE
             b.txtNoConnections.visibility = View.VISIBLE
         } else {
+            val labels = (if (needsChoice) listOf("Choose an account…") else emptyList()) +
+                conns.map { it.displayName }
             b.spinnerConnection.adapter = ArrayAdapter(
-                this, android.R.layout.simple_spinner_dropdown_item, conns.map { it.displayName }
+                this, android.R.layout.simple_spinner_dropdown_item, labels
             )
             val idx = conns.indexOfFirst { it.id == folder.connectionId }
-            b.spinnerConnection.setSelection(if (idx >= 0) idx else 0)
+            b.spinnerConnection.setSelection(if (idx >= 0) idx + offset else 0)
         }
 
         b.editRemotePath.setText(folder.remotePath.orEmpty())
@@ -387,7 +393,8 @@ class WatchedFoldersActivity : ThemedActivity() {
             .setTitle("Advanced Settings \u00b7 ${folder.displayPath}")
             .setView(b.root)
             .setPositiveButton("Save") { _, _ ->
-                val conn = if (conns.isEmpty()) null else conns.getOrNull(b.spinnerConnection.selectedItemPosition)
+                val conn = if (conns.isEmpty()) null
+                else conns.getOrNull(b.spinnerConnection.selectedItemPosition - offset)
                 val filter = filters.getOrNull(b.spinnerFilter.selectedItemPosition) ?: FileFilter.ANY
                 val exts = b.editExtensions.text?.toString().orEmpty()
                     .split(',', ' ', ';')
@@ -407,9 +414,28 @@ class WatchedFoldersActivity : ThemedActivity() {
                     intervalOptions.getOrElse(b.spinnerInterval.selectedItemPosition) { 0L },
                     b.switchLowBattery.isChecked
                 )
+                val oldConn = conns.firstOrNull { it.id == folder.connectionId }
+                val newConn = conns.firstOrNull { it.id == updated.connectionId }
                 lifecycleScope.launch {
                     repo.saveWatchedFolder(updated)
-                    Toast.makeText(this@WatchedFoldersActivity, "Saved", Toast.LENGTH_SHORT).show()
+                    when {
+                        newConn == null -> Toast.makeText(
+                            this@WatchedFoldersActivity,
+                            "Saved – this folder won't back up until you choose an account",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        folder.connectionId != null && folder.connectionId != newConn.id ->
+                            AlertDialog.Builder(this@WatchedFoldersActivity)
+                                .setTitle("Now backing up to ${newConn.displayName}")
+                                .setMessage(
+                                    "Copies already on ${oldConn?.displayName ?: "the old account"} stay there; " +
+                                        "nothing is deleted or moved. The next scan uploads this folder's " +
+                                        "files to ${newConn.displayName}, so that scan may take a while."
+                                )
+                                .setPositiveButton(android.R.string.ok, null)
+                                .show()
+                        else -> Toast.makeText(this@WatchedFoldersActivity, "Saved", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)

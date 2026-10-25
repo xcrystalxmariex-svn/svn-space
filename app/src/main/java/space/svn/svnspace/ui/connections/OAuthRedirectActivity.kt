@@ -4,10 +4,11 @@ import android.os.Bundle
 import android.util.Base64
 import android.util.Log
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import space.svn.svnspace.ui.common.ThemedActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.openid.appauth.AuthorizationException
@@ -18,6 +19,7 @@ import space.svn.svnspace.data.model.Connection
 import space.svn.svnspace.data.model.ConnectionType
 import space.svn.svnspace.data.remote.GoogleDriveClient
 import space.svn.svnspace.data.repository.SvnRepository
+import space.svn.svnspace.util.AuthState
 import space.svn.svnspace.util.SecureStore
 import space.svn.svnspace.util.ThemeManager
 import java.util.UUID
@@ -30,12 +32,11 @@ import java.util.UUID
  * Signing in again with an account that is already connected refreshes that
  * connection's login instead of adding a duplicate.
  */
-class OAuthRedirectActivity : AppCompatActivity() {
+class OAuthRedirectActivity : ThemedActivity() {
 
     private var service: AuthorizationService? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        ThemeManager.applyToActivity(this)
         super.onCreate(savedInstanceState)
 
         if (intent.getBooleanExtra(EXTRA_CANCELLED, false)) {
@@ -88,13 +89,19 @@ class OAuthRedirectActivity : AppCompatActivity() {
 
             lifecycleScope.launch {
                 val repo = SvnRepository(this@OAuthRedirectActivity)
-                val existing = if (email != null) {
-                    withContext(Dispatchers.IO) {
-                        repo.getEnabledConnections().firstOrNull {
+                val reconnectId = intent.getStringExtra(EXTRA_RECONNECT_ID)
+                val existing = withContext(Dispatchers.IO) {
+                    // Reconnecting a known account keeps its folders and settings. If the user
+                    // picked a different account in Google's chooser, it becomes a new connection.
+                    val target = reconnectId?.let { repo.getConnection(it) }?.takeIf {
+                        email == null || it.username.isNullOrBlank() || it.username.equals(email, ignoreCase = true)
+                    }
+                    target ?: if (email != null) {
+                        repo.observeConnections().first().firstOrNull {
                             it.type == ConnectionType.OAUTH_GOOGLE && it.username.equals(email, ignoreCase = true)
                         }
-                    }
-                } else null
+                    } else null
+                }
 
                 val conn = (existing ?: Connection(
                     id = UUID.randomUUID().toString(),
@@ -108,7 +115,8 @@ class OAuthRedirectActivity : AppCompatActivity() {
                 )).copy(lastVerifiedAt = System.currentTimeMillis())
 
                 withContext(Dispatchers.IO) {
-                    repo.saveConnection(conn, refresh)
+                    repo.saveConnection(conn.copy(isEnabled = true, username = email ?: conn.username), refresh)
+                    AuthState.clear(this@OAuthRedirectActivity, conn.id)
                     tokenResponse.accessToken?.let {
                         SecureStore(this@OAuthRedirectActivity).putSecret("conn_${conn.id}_access", it)
                     }
@@ -142,5 +150,6 @@ class OAuthRedirectActivity : AppCompatActivity() {
         private const val TAG = "OAuthRedirect"
         const val EXTRA_PROVIDER = "svn_oauth_provider"
         const val EXTRA_CANCELLED = "svn_oauth_cancelled"
+        const val EXTRA_RECONNECT_ID = "svn_oauth_reconnect_id"
     }
 }

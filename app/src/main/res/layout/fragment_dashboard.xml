@@ -115,6 +115,7 @@
                             android:textStyle="bold" />
 
                         <TextView
+                            android:id="@+id/txt_backed_up_label"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/backed_up"

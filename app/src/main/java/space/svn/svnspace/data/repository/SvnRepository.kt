@@ -85,6 +85,11 @@ class SvnRepository(context: Context) {
 
     suspend fun countVerified(): Int = db.backupRecordDao().countVerified()
 
+    fun observeCountVerified(): Flow<Int> = db.backupRecordDao().observeCountVerified()
+
+    suspend fun findRecord(uri: String, connectionId: String): BackupRecord? =
+        db.backupRecordDao().findByUriAndConnection(uri, connectionId)?.toModel()
+
     // ── Mappers ──────────────────────────────────────────────────
 
     private fun ConnectionEntity.toModel() = Connection(

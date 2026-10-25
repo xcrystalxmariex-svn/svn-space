@@ -65,4 +65,19 @@ interface BackupRecordDao {
 
     @Query("SELECT COUNT(*) FROM backup_records WHERE verified = 1")
     suspend fun countVerified(): Int
+
+    /**
+     * Live count of backed-up files for the dashboard card. Room re-runs it whenever the
+     * scan saves a record, so the card counts up during a scan. Each file is counted once
+     * (a file can have an old record left on an account its folder used to back up to).
+     */
+    @Query("SELECT COUNT(DISTINCT localUri) FROM backup_records WHERE verified = 1")
+    fun observeCountVerified(): kotlinx.coroutines.flow.Flow<Int>
+
+    /**
+     * The record for one file on one account. The scan only asks about the account
+     * selected for the file's folder, so a file is uploaded to that one account only.
+     */
+    @Query("SELECT * FROM backup_records WHERE localUri = :uri AND remoteConnectionId = :connectionId LIMIT 1")
+    suspend fun findByUriAndConnection(uri: String, connectionId: String): BackupRecordEntity?
 }

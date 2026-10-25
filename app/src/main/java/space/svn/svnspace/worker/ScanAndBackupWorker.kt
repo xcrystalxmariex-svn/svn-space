@@ -25,6 +25,7 @@ import space.svn.svnspace.data.remote.GoogleDriveClient
 import space.svn.svnspace.data.remote.WebDavClient
 import space.svn.svnspace.data.repository.SvnRepository
 import space.svn.svnspace.ui.connections.OAuthHelper
+import space.svn.svnspace.util.AuthState
 import space.svn.svnspace.util.StorageAccess
 import java.io.File
 import java.io.FileOutputStream
@@ -73,6 +74,15 @@ class ScanAndBackupWorker(
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val manual = inputData.getBoolean(KEY_MANUAL, false)
+        val mediaTriggered = inputData.getString(KEY_TRIGGER) == "media"
+        if (mediaTriggered) {
+            // Content-trigger jobs fire once; line up the next one to run after this.
+            try {
+                BackupScheduler.scheduleMediaTrigger(appContext, fromWorker = true)
+            } catch (e: Exception) {
+                Log.w(TAG, "Couldn't re-arm the media trigger: ${e.message}")
+            }
+        }
         if (manual) {
             // A user-started scan may upload a lot; run it as a foreground job so Android
             // doesn't stop it after ~10 minutes. Not allowed from the background on 12+,
@@ -122,14 +132,21 @@ class ScanAndBackupWorker(
                     Log.w(TAG, "Folder ${folder.displayPath} has no connection assigned – skip")
                     continue
                 }
+                // Each folder backs up to its one selected account and nowhere else. If that
+                // account is gone or switched off, skip the folder rather than pick another.
                 val conn = repo.getConnection(connId)
-                if (conn == null || !conn.isEnabled) {
+                if (conn == null) {
                     stats.noDestination++
+                    continue
+                }
+                if (!conn.isEnabled) {
+                    stats.problems.add("${folder.displayPath}: its account ${conn.displayName} is turned off – skipped")
                     continue
                 }
                 val secret = repo.getSecret(conn.id)
                 if (secret == null) {
-                    stats.problems.add("${conn.displayName}: sign in again")
+                    AuthState.markNeedsReconnect(appContext, conn.id, AuthState.Reason.MISSING_LOGIN)
+                    stats.problems.add("${conn.displayName}: sign in again (Cloud Accounts → Reconnect)")
                     continue
                 }
                 val problem = StorageAccess.problemWith(appContext, folder.localUri)
@@ -140,30 +157,58 @@ class ScanAndBackupWorker(
                 }
 
                 val before = stats.uploaded
+                val startedAt = System.currentTimeMillis()
                 try {
-                    when (conn.type) {
+                    val (target, remoteBase) = when (conn.type) {
                         ConnectionType.WEBDAV, ConnectionType.CUSTOM_HTTP ->
-                            processWebDavFolder(repo, root, folder, conn, secret)
+                            webDavTarget(folder, conn, secret)
                         ConnectionType.OAUTH_GOOGLE ->
-                            processDriveFolder(repo, root, folder, conn, secret)
+                            driveTarget(folder, conn, secret, folderNameFor(folder, root))
                         else -> {
                             stats.problems.add("${conn.displayName}: uploads not supported yet")
                             continue
                         }
                     }
+                    if (StorageAccess.isFileUri(folder.localUri)) {
+                        // Direct file access: incremental by modified time, with a full pass
+                        // once a day to catch files that arrived with old timestamps.
+                        val lastComplete = StorageAccess.lastCompleteScan(appContext, folder.id)
+                        val full = manual || lastComplete == 0L ||
+                            startedAt - StorageAccess.lastFullScan(appContext, folder.id) > FULL_SCAN_EVERY_MS
+                        val cutoff = if (full) 0L else lastComplete - MTIME_SLACK_MS
+                        val matcher = StorageAccess.ExcludeMatcher(StorageAccess.excludes(appContext, folder.id))
+                        val rootDir = StorageAccess.fileOf(folder.localUri)
+                        walkFiles(repo, rootDir, "", target, remoteBase, folder, conn.id, matcher, cutoff,
+                            StorageAccess.isInternalRoot(folder.localUri))
+                        if (!isStopped) StorageAccess.markScanComplete(appContext, folder.id, startedAt, full)
+                    } else {
+                        walkAndUpload(repo, root, target, remoteBase, folder, conn.id)
+                    }
                     stats.foldersScanned++
+                    if (AuthState.reasonFor(appContext, conn.id) == AuthState.Reason.EXPIRED) {
+                        AuthState.clear(appContext, conn.id)
+                    }
                 } catch (e: GoogleDriveClient.ReauthRequiredException) {
                     Log.w(TAG, "Drive login for ${conn.displayName} needs reconnecting: ${e.message}")
-                    stats.problems.add("${conn.displayName}: Google sign-in expired, connect it again")
+                    val reason = if (e is GoogleDriveClient.ScopeUpgradeRequiredException) AuthState.Reason.LIMITED_SCOPE
+                    else AuthState.Reason.EXPIRED
+                    AuthState.markNeedsReconnect(appContext, conn.id, reason)
+                    stats.problems.add("${conn.displayName}: Google sign-in expired – Cloud Accounts → Reconnect")
+                } catch (e: WebDavClient.AuthException) {
+                    AuthState.markNeedsReconnect(appContext, conn.id, AuthState.Reason.MISSING_LOGIN)
+                    stats.problems.add("${conn.displayName}: the server refused the login – Cloud Accounts → Reconnect")
                 } catch (e: Exception) {
                     Log.e(TAG, "Folder ${folder.displayPath} failed", e)
                     stats.problems.add("${folder.displayPath}: ${e.message ?: e.javaClass.simpleName}")
                 }
                 val now = System.currentTimeMillis()
+                // Re-read so settings changed during a long scan aren't overwritten.
+                val latest = repo.getEnabledWatchedFolders().firstOrNull { it.id == folder.id } ?: folder
                 repo.saveWatchedFolder(
-                    folder.copy(
+                    latest.copy(
+                        connectionId = latest.connectionId ?: folder.connectionId,
                         lastScanAt = now,
-                        lastBackupAt = if (stats.uploaded > before) now else folder.lastBackupAt
+                        lastBackupAt = if (stats.uploaded > before) now else latest.lastBackupAt
                     )
                 )
             }
@@ -224,15 +269,18 @@ class ScanAndBackupWorker(
         fun upload(file: File, path: String)
     }
 
-    private suspend fun processDriveFolder(
-        repo: SvnRepository,
-        root: DocumentFile,
+    private fun folderNameFor(folder: WatchedFolder, root: DocumentFile): String = when {
+        StorageAccess.isInternalRoot(folder.localUri) -> "Internal storage"
+        else -> root.name ?: folder.displayPath.substringAfterLast('/').ifBlank { "Backup" }
+    }
+
+    private fun driveTarget(
         folder: WatchedFolder,
         conn: Connection,
-        refreshToken: String
-    ) {
+        refreshToken: String,
+        folderName: String
+    ): Pair<RemoteTarget, String> {
         val drive = GoogleDriveClient(OAuthHelper.GOOGLE_CLIENT_ID, refreshToken)
-        val folderName = root.name ?: folder.displayPath.ifBlank { "Backup" }
         val remoteBase = (folder.remotePath?.takeIf { it.isNotBlank() && it != "/" }
             ?: "${conn.basePath ?: GoogleDriveClient.DEFAULT_ROOT}/$folderName").trimEnd('/')
         drive.ensureFolder(remoteBase)
@@ -240,16 +288,14 @@ class ScanAndBackupWorker(
             override fun mkdir(path: String) { drive.ensureFolder(path) }
             override fun upload(file: File, path: String) { drive.upload(file, path) }
         }
-        walkAndUpload(repo, root, target, remoteBase, folder, conn.id)
+        return target to remoteBase
     }
 
-    private suspend fun processWebDavFolder(
-        repo: SvnRepository,
-        root: DocumentFile,
+    private fun webDavTarget(
         folder: WatchedFolder,
         conn: Connection,
         password: String
-    ) {
+    ): Pair<RemoteTarget, String> {
         val base = (conn.host ?: throw IllegalStateException("server address missing")).trimEnd('/')
         val client = WebDavClient(
             baseUrl = base,
@@ -257,18 +303,109 @@ class ScanAndBackupWorker(
             password = password,
             useTls = conn.useTls
         )
-
         val remoteBase = (folder.remotePath ?: conn.basePath ?: "/").trimEnd('/')
-
         try {
             client.mkcol(remoteBase)
+        } catch (e: WebDavClient.AuthException) {
+            throw e
         } catch (_: Exception) { /* may already exist */ }
 
         val target = object : RemoteTarget {
             override fun mkdir(path: String) { client.mkcol(path) }
             override fun upload(file: File, path: String) { client.upload(file, path) }
         }
-        walkAndUpload(repo, root, target, remoteBase, folder, conn.id)
+        return target to remoteBase
+    }
+
+    /**
+     * Walk for folders read with All files access (plain paths). Uploads straight from
+     * the file (no cache copy), skips excluded names and Android/data + Android/obb, and
+     * only looks at files modified after [cutoff] (0 = everything).
+     */
+    private suspend fun walkFiles(
+        repo: SvnRepository,
+        dir: File,
+        relDir: String,
+        client: RemoteTarget,
+        remoteDir: String,
+        folder: WatchedFolder,
+        connectionId: String,
+        matcher: StorageAccess.ExcludeMatcher,
+        cutoff: Long,
+        isStorageRoot: Boolean
+    ) {
+        if (isStopped) return
+        val children = dir.listFiles() ?: return
+        var madeRemoteDir = relDir.isEmpty()
+        for (child in children) {
+            if (isStopped) return
+            val name = child.name
+            val rel = if (relDir.isEmpty()) name else "$relDir/$name"
+            if (isStorageRoot && StorageAccess.ALWAYS_SKIPPED.any { rel.equals(it, true) || rel.startsWith("$it/", true) }) continue
+            if (name.startsWith(".pending-") || name.startsWith(".trashed-")) continue
+            if (matcher.excluded(name, rel)) continue
+            if (child.isDirectory) {
+                walkFiles(repo, child, rel, client, "$remoteDir/$name", folder, connectionId, matcher, cutoff, isStorageRoot)
+                continue
+            }
+            if (!child.isFile || !matchesName(name, folder)) continue
+            if (cutoff > 0 && child.lastModified() < cutoff) continue
+
+            val uri = android.net.Uri.fromFile(child).toString()
+            val existing = repo.findRecord(uri, connectionId)
+            if (existing != null && existing.verified && existing.sizeBytes == child.length() &&
+                existing.backedUpAt >= child.lastModified()
+            ) {
+                stats.alreadyBackedUp++
+                continue
+            }
+            try {
+                // Only create remote folders that end up holding something.
+                if (!madeRemoteDir) {
+                    try { client.mkdir(remoteDir) } catch (_: Exception) {}
+                    madeRemoteDir = true
+                }
+                val remotePath = "$remoteDir/$name"
+                client.upload(child, remotePath)
+                saveUploaded(repo, existing?.id, uri, rel, connectionId, remotePath, child, child.length(), folder)
+            } catch (e: GoogleDriveClient.ReauthRequiredException) {
+                throw e
+            } catch (e: WebDavClient.AuthException) {
+                throw e
+            } catch (e: Exception) {
+                stats.failedFiles++
+                if (stats.problems.size < 3) stats.problems.add("$name: ${e.message ?: e.javaClass.simpleName}")
+                Log.e(TAG, "Upload failed for $rel", e)
+            }
+        }
+    }
+
+    /** Saves the record first, then counts it, so the dashboard counter and progress always agree. */
+    private suspend fun saveUploaded(
+        repo: SvnRepository,
+        existingId: String?,
+        uri: String,
+        localPath: String,
+        connectionId: String,
+        remotePath: String,
+        contents: File,
+        size: Long,
+        folder: WatchedFolder
+    ) {
+        val record = BackupRecord(
+            id = existingId ?: UUID.randomUUID().toString(),
+            localUri = uri,
+            localPath = localPath,
+            remoteConnectionId = connectionId,
+            remotePath = remotePath,
+            contentHash = sha256(contents),
+            sizeBytes = size,
+            verified = true
+        )
+        repo.saveRecord(record)
+        stats.uploaded++
+        setProgress(workDataOf(KEY_CURRENT to folder.displayPath, KEY_UPLOADED to stats.uploaded))
+        Log.i(TAG, "Backed up: $localPath → $remotePath")
     }
 
     private suspend fun walkAndUpload(
@@ -291,8 +428,10 @@ class ScanAndBackupWorker(
                 try { client.mkdir(subRemote) } catch (_: Exception) {}
                 walkAndUpload(repo, child, client, subRemote, folder, connectionId)
             } else if (child.isFile && matchesFilter(child, folder)) {
-                val existing = repo.findRecordByUri(child.uri.toString())
-                if (existing != null && existing.verified) {
+                val existing = repo.findRecord(child.uri.toString(), connectionId)
+                if (existing != null && existing.verified && existing.sizeBytes == child.length() &&
+                    existing.backedUpAt >= child.lastModified()
+                ) {
                     stats.alreadyBackedUp++
                     continue
                 }
@@ -310,23 +449,11 @@ class ScanAndBackupWorker(
 
                     val remotePath = "$remoteDir/$childName"
                     client.upload(cacheFile, remotePath)
-
-                    val hash = sha256(cacheFile)
-                    val record = BackupRecord(
-                        id = UUID.randomUUID().toString(),
-                        localUri = child.uri.toString(),
-                        localPath = childName,
-                        remoteConnectionId = connectionId,
-                        remotePath = remotePath,
-                        contentHash = hash,
-                        sizeBytes = child.length(),
-                        verified = true
-                    )
-                    repo.saveRecord(record)
-                    stats.uploaded++
-                    setProgress(workDataOf(KEY_CURRENT to folder.displayPath, KEY_UPLOADED to stats.uploaded))
-                    Log.i(TAG, "Backed up: $childName → $remotePath")
+                    saveUploaded(repo, existing?.id, child.uri.toString(), childName, connectionId,
+                        remotePath, cacheFile, child.length(), folder)
                 } catch (e: GoogleDriveClient.ReauthRequiredException) {
+                    throw e
+                } catch (e: WebDavClient.AuthException) {
                     throw e
                 } catch (e: Exception) {
                     stats.failedFiles++
@@ -340,7 +467,12 @@ class ScanAndBackupWorker(
     }
 
     private fun matchesFilter(file: DocumentFile, folder: WatchedFolder): Boolean {
-        val name = file.name?.lowercase() ?: return false
+        val name = file.name ?: return false
+        return matchesName(name, folder)
+    }
+
+    private fun matchesName(fileName: String, folder: WatchedFolder): Boolean {
+        val name = fileName.lowercase()
         return when (folder.fileFilter) {
             FileFilter.ANY -> true
             FileFilter.IMAGES -> name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") ||
@@ -372,6 +504,11 @@ class ScanAndBackupWorker(
         private const val NOTIFICATION_ID = 4101
 
         const val KEY_MANUAL = "manual"
+        const val KEY_TRIGGER = "trigger"
+        /** Incremental scans of plain-path folders do a full pass at least this often. */
+        private const val FULL_SCAN_EVERY_MS = 24 * 60 * 60 * 1000L
+        /** Files can land with a modified time slightly before the scan that should catch them. */
+        private const val MTIME_SLACK_MS = 2 * 60 * 1000L
         const val KEY_CURRENT = "current_folder"
         const val KEY_UPLOADED = "uploaded"
         const val KEY_FAILED = "failed"

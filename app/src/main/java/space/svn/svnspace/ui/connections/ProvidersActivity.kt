@@ -17,7 +17,8 @@ import space.svn.svnspace.data.model.ConnectionType
 import space.svn.svnspace.data.repository.SvnRepository
 import space.svn.svnspace.databinding.ActivityProvidersBinding
 import space.svn.svnspace.databinding.ItemWatchedFolderBinding
-import space.svn.svnspace.util.ThemeManager
+import space.svn.svnspace.ui.browser.CloudBrowserActivity
+import space.svn.svnspace.util.AuthState
 
 /** Cloud Accounts / All Providers: every connection with an on/off toggle. */
 class ProvidersActivity : ThemedActivity() {
@@ -78,10 +79,12 @@ class ProvidersActivity : ThemedActivity() {
             val (conn, signedIn) = items[position]
             val b = holder.b
             b.txtPath.text = conn.displayName
+            val reason = AuthState.reasonFor(this@ProvidersActivity, conn.id)
+                ?: if (!signedIn) AuthState.Reason.MISSING_LOGIN else null
             val status = when {
-                !signedIn -> "Sign in needed"
-                conn.isEnabled -> "Connected"
-                else -> "Paused"
+                reason != null -> AuthState.label(reason)
+                conn.isEnabled -> "Connected · tap to browse"
+                else -> "Paused · tap to browse"
             }
             b.txtSummary.text = "${label(conn)} \u00b7 $status"
             b.switchEnabled.setOnCheckedChangeListener(null)
@@ -100,11 +103,31 @@ class ProvidersActivity : ThemedActivity() {
                     .show()
             }
             b.root.setOnClickListener {
-                if (!signedIn && conn.type == ConnectionType.OAUTH_GOOGLE) {
-                    OAuthHelper.launchGoogle(this@ProvidersActivity)
+                if (reason == AuthState.Reason.EXPIRED || reason == AuthState.Reason.MISSING_LOGIN) {
+                    Reconnect.start(this@ProvidersActivity, lifecycleScope, repo, conn) { notifyDataSetChanged() }
+                } else {
+                    startActivity(CloudBrowserActivity.intent(this@ProvidersActivity, conn.id))
                 }
             }
+            b.root.setOnLongClickListener {
+                AlertDialog.Builder(this@ProvidersActivity)
+                    .setTitle(conn.displayName)
+                    .setItems(arrayOf("Browse files", "Reconnect")) { _, which ->
+                        when (which) {
+                            0 -> startActivity(CloudBrowserActivity.intent(this@ProvidersActivity, conn.id))
+                            1 -> Reconnect.start(this@ProvidersActivity, lifecycleScope, repo, conn) { notifyDataSetChanged() }
+                        }
+                    }
+                    .show()
+                true
+            }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Reconnect state lives outside the database, so refresh the rows when coming back.
+        binding.recycler.adapter?.notifyDataSetChanged()
     }
 
     override fun onSupportNavigateUp(): Boolean {

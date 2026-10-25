@@ -41,11 +41,17 @@ object OAuthHelper {
     const val MICROSOFT_CLIENT_ID = "YOUR_MICROSOFT_CLIENT_ID"
     const val DROPBOX_CLIENT_ID = "YOUR_DROPBOX_APP_KEY"
 
-    /** Google Drive scopes. drive.file / drive.appdata are non-sensitive, so no Google verification is needed. */
+    /**
+     * Google Drive scopes. The full "drive" scope lets the app browse and manage everything
+     * in the account, like the Drive app itself. It's a restricted scope: while the Cloud
+     * project is in Testing mode it works for listed test users without Google verification,
+     * but Google expires those sign-ins after 7 days, and the app then asks to reconnect.
+     * drive.appdata is kept for the app's hidden settings space.
+     */
     val GOOGLE_SCOPES = listOf(
         "openid",
         "email",
-        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/drive.appdata"
     )
 
@@ -55,7 +61,7 @@ object OAuthHelper {
      * result to OAuthRedirectActivity through the completion PendingIntent below.
      * Each run can pick a different Google account, so every account becomes its own connection.
      */
-    fun launchGoogle(context: Context) {
+    fun launchGoogle(context: Context, reconnectId: String? = null, loginHint: String? = null) {
         val config = AuthorizationServiceConfiguration(
             Uri.parse("https://accounts.google.com/o/oauth2/v2/auth"),
             Uri.parse("https://oauth2.googleapis.com/token")
@@ -70,6 +76,7 @@ object OAuthHelper {
             // Always show the account chooser (many Google accounts) and the consent
             // screen, so Google returns a refresh token every time.
             .setPromptValues("select_account", "consent")
+            .apply { if (!loginHint.isNullOrBlank()) setLoginHint(loginHint) }
             .build()
 
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or
@@ -77,7 +84,8 @@ object OAuthHelper {
         val complete = PendingIntent.getActivity(
             context, 1001,
             Intent(context, OAuthRedirectActivity::class.java)
-                .putExtra(OAuthRedirectActivity.EXTRA_PROVIDER, "google"),
+                .putExtra(OAuthRedirectActivity.EXTRA_PROVIDER, "google")
+                .putExtra(OAuthRedirectActivity.EXTRA_RECONNECT_ID, reconnectId),
             flags
         )
         val cancel = PendingIntent.getActivity(

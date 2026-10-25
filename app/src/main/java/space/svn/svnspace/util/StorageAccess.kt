@@ -41,6 +41,51 @@ object StorageAccess {
     fun publicDirUri(dirType: String): String =
         Uri.fromFile(Environment.getExternalStoragePublicDirectory(dirType)).toString()
 
+    // ── Whole internal storage ──
+
+    /** The shared internal storage root, normally /storage/emulated/0. */
+    fun internalRoot(): File = Environment.getExternalStorageDirectory()
+
+    fun internalRootUri(): String = Uri.fromFile(internalRoot()).toString()
+
+    fun isInternalRoot(localUri: String): Boolean =
+        isFileUri(localUri) && fileOf(localUri).absolutePath.trimEnd('/') == internalRoot().absolutePath.trimEnd('/')
+
+    /** Paths under the storage root that Android never lets apps read. Always skipped. */
+    val ALWAYS_SKIPPED = listOf("Android/data", "Android/obb")
+
+    /**
+     * Default excludes for folders read with All files access. Each line is a name pattern
+     * (* wildcard) matched against every folder and file name, or a path relative to the
+     * watched folder when it contains a slash. Users can edit them per folder.
+     */
+    val DEFAULT_EXCLUDES = listOf(
+        ".thumbnails", ".cache", "cache", "Cache", ".Trash*", ".trash*", ".trashed-*", ".pending-*",
+        "LOST.DIR", ".nomedia", "*.tmp", "*.temp", "*.part", "*.crdownload", "~*", ".~*"
+    )
+
+    /** Top-level folders of internal storage for "Add all folders" (no hidden ones, no Android/). */
+    fun topLevelFolders(): List<File> =
+        internalRoot().listFiles()
+            ?.filter { it.isDirectory && !it.name.startsWith(".") && it.name != "Android" }
+            ?.sortedBy { it.name.lowercase() }
+            ?: emptyList()
+
+    /** Opens the system "All files access" screen for this app (Android 11+). */
+    fun allFilesAccessIntent(context: Context): android.content.Intent? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        return android.content.Intent(
+            android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+            Uri.parse("package:${context.packageName}")
+        )
+    }
+
+    /** Fallback when the per-app screen isn't available on this phone. */
+    fun allFilesAccessListIntent(): android.content.Intent? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+        } else null
+
     fun downloadsDir(): File =
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
 
@@ -111,6 +156,70 @@ object StorageAccess {
             .putLong("${folderId}_interval", intervalMinutes)
             .putBoolean("${folderId}_low_battery", pauseLowBattery)
             .apply()
+    }
+
+    fun excludes(context: Context, folderId: String): List<String> {
+        val raw = context.getSharedPreferences(FOLDER_PREFS, Context.MODE_PRIVATE)
+            .getString("${folderId}_excludes", null) ?: return emptyList()
+        return raw.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    fun saveExcludes(context: Context, folderId: String, patterns: List<String>) {
+        context.getSharedPreferences(FOLDER_PREFS, Context.MODE_PRIVATE).edit()
+            .putString("${folderId}_excludes", patterns.map { it.trim() }.filter { it.isNotEmpty() }.joinToString("\n"))
+            .apply()
+    }
+
+    /** Last time a scan of this folder finished completely (for incremental scans), 0 if never. */
+    fun lastCompleteScan(context: Context, folderId: String): Long =
+        context.getSharedPreferences(FOLDER_PREFS, Context.MODE_PRIVATE).getLong("${folderId}_complete", 0L)
+
+    fun lastFullScan(context: Context, folderId: String): Long =
+        context.getSharedPreferences(FOLDER_PREFS, Context.MODE_PRIVATE).getLong("${folderId}_full", 0L)
+
+    fun markScanComplete(context: Context, folderId: String, startedAt: Long, wasFull: Boolean) {
+        context.getSharedPreferences(FOLDER_PREFS, Context.MODE_PRIVATE).edit()
+            .putLong("${folderId}_complete", startedAt)
+            .apply { if (wasFull) putLong("${folderId}_full", startedAt) }
+            .apply()
+    }
+
+    /** Forget incremental state, so the next scan looks at every file again. */
+    fun resetScanState(context: Context, folderId: String) {
+        context.getSharedPreferences(FOLDER_PREFS, Context.MODE_PRIVATE).edit()
+            .remove("${folderId}_complete").remove("${folderId}_full").apply()
+    }
+
+    /** All per-folder extras, for the settings backup. */
+    fun allFolderOptions(context: Context): Map<String, *> =
+        context.getSharedPreferences(FOLDER_PREFS, Context.MODE_PRIVATE).all
+
+    fun folderPrefs(context: Context): android.content.SharedPreferences =
+        context.getSharedPreferences(FOLDER_PREFS, Context.MODE_PRIVATE)
+
+    /** Simple matcher for exclude patterns: * wildcard, case-insensitive. */
+    class ExcludeMatcher(patterns: List<String>) {
+        private val namePatterns = ArrayList<Regex>()
+        private val pathPatterns = ArrayList<Regex>()
+
+        init {
+            for (p in patterns) {
+                val clean = p.trim().trim('/')
+                if (clean.isEmpty()) continue
+                val body = clean.split('*').joinToString(".*") { Regex.escape(it) }
+                if (clean.contains('/')) {
+                    // A path also covers everything inside it.
+                    pathPatterns.add(Regex("$body(/.*)?", RegexOption.IGNORE_CASE))
+                } else {
+                    namePatterns.add(Regex(body, RegexOption.IGNORE_CASE))
+                }
+            }
+        }
+
+        /** [relativePath] is relative to the watched folder, like "DCIM/.thumbnails". */
+        fun excluded(name: String, relativePath: String): Boolean =
+            namePatterns.any { it.matches(name) } ||
+                pathPatterns.any { it.matches(relativePath) }
     }
 
     fun isBatteryLow(context: Context): Boolean {

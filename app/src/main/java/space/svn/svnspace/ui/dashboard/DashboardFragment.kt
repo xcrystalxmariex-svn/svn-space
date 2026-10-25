@@ -66,9 +66,17 @@ class DashboardFragment : Fragment() {
             binding.txtLastScan.text = "Scan: starting…"
         }
         // Follow the real state of the scan instead of a fixed "queued" label.
+        // Every scan (Scan Now, scheduled, or started by new files) carries the scan tag.
         WorkManager.getInstance(requireContext())
-            .getWorkInfosForUniqueWorkLiveData(BackupScheduler.SCAN_NOW_WORK)
-            .observe(viewLifecycleOwner) { infos -> showScanState(infos?.lastOrNull()) }
+            .getWorkInfosByTagLiveData(BackupScheduler.SCAN_TAG)
+            .observe(viewLifecycleOwner) { infos ->
+                val running = infos?.firstOrNull { it.state == WorkInfo.State.RUNNING }
+                val waitingManual = infos?.firstOrNull {
+                    it.state == WorkInfo.State.ENQUEUED && it.periodicityInfo == null &&
+                        it.constraints.contentUriTriggers.isEmpty()
+                }
+                showScanState(running ?: waitingManual ?: infos?.filter { it.state.isFinished }?.lastOrNull())
+            }
         binding.btnFreeUp.setOnClickListener {
             AlertDialog.Builder(requireContext())
                 .setTitle(space.svn.svnspace.R.string.free_up_space_confirm_title)
@@ -88,9 +96,12 @@ class DashboardFragment : Fragment() {
                 binding.txtNoProviders.visibility = if (enabled.isEmpty()) View.VISIBLE else View.GONE
             }
         }
-        lifecycleScope.launch {
-            val count = repo.countVerified()
-            binding.txtBackedUp.text = if (count > 0) "$count files" else "—"
+        // Live: Room re-runs the count every time the scan saves a record, so this goes up
+        // file by file during a scan and matches the "uploaded" number.
+        viewLifecycleOwner.lifecycleScope.launch {
+            repo.observeCountVerified().collectLatest { count ->
+                _binding?.txtBackedUp?.text = if (count > 0) "$count files" else "—"
+            }
         }
     }
 
@@ -125,10 +136,6 @@ class DashboardFragment : Fragment() {
             }
             WorkInfo.State.SUCCEEDED, WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> {
                 showLastScan()
-                lifecycleScope.launch {
-                    val count = repo.countVerified()
-                    _binding?.txtBackedUp?.text = if (count > 0) "$count files" else "—"
-                }
             }
             null -> showLastScan()
         }
